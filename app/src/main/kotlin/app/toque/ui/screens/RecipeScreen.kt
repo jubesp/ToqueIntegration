@@ -91,8 +91,11 @@ class RecipeScreen(a: MainActivity, val recipe: Recipe) : Screen(a) {
         val community = recipe.source == RecipeSource.COMMUNITY
         if (recipe.source == RecipeSource.USER) byline += tr("Ma recette")
         else if (recipe.source == RecipeSource.MEALIE) byline += tr("Depuis Mealie")
-        else if (recipe.source == RecipeSource.COOKOMIX)
+        else if (recipe.source == RecipeSource.COOKOMIX) {
             byline += if (recipe.author.isNotBlank()) tr("Depuis cookomix.com · par %s", recipe.author) else tr("Depuis cookomix.com")
+            // Recette Thermomix dont un réglage a été changé pour le Monsieur Cuisine : on dit lequel.
+            app.toque.core.recipes.Cookomix.adaptations(recipe).firstOrNull()?.let { byline += tr("Adaptée au Monsieur Cuisine : %s", it) }
+        }
         else if (community) byline += if (recipe.author.isNotBlank()) tr("Communauté toqueapp.org · par %s", recipe.author) else tr("Communauté toqueapp.org")
         else if (recipe.author.isNotBlank()) byline += tr("Par %s", authorName(recipe.author))
         // Recette de la communauté : sa langue seulement si ce n'est pas celle de l'interface.
@@ -159,10 +162,8 @@ class RecipeScreen(a: MainActivity, val recipe: Recipe) : Screen(a) {
             reviewsBox.addView(reviewsState, Ui.lp(t = 10))
             addTab(Tab.REVIEWS, tr("Avis"), recipe.ratingCount, reviewsBox)
         } else if (app.toque.cookomix.CookomixReviews.available(recipe)) {
-            // ToqueIntegration : avis et photos des membres de cookomix.com.
-            reviewsBox.addView(section(if (recipe.ratingCount > 0)
-                tr("Avis · %s/5 (%d notes)", rating(recipe.rating), recipe.ratingCount) else tr("Avis")))
-            reviewsBox.addView(reviewsState, Ui.lp(t = 10))
+            // ToqueIntegration : avis et photos des membres de cookomix.com (la note est dans leur carte).
+            reviewsBox.addView(reviewsState, Ui.lp(t = 4))
             addTab(Tab.REVIEWS, tr("Avis"), recipe.ratingCount, reviewsBox)
         }
         card.addView(tabsRow)

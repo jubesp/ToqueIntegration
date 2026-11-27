@@ -3,6 +3,25 @@
 > **ToqueIntegration**: Wuki60's Toque + **Cookomix** recipes (ported from
 > aguiran/MrCuisineConnectCookomix), updated automatically with every Wuki60 release. See **[PREPARATION.fr.md](PREPARATION.fr.md)** (French).
 
+## Cookomix sur le robot · Cookomix on the robot
+
+Captures rendues à 1024 × 600, la taille de l'écran du robot. Recettes, avis et photos sont **inventés**
+pour les captures (rien n'est copié de cookomix.com) : sur le robot, ce sont ceux du site.
+
+| Liste filtrée « Cookomix » | Onglet **Avis** : note, répartition, photos des membres, filtres |
+|---|---|
+| ![Liste Cookomix](docs/images/cookomix/02-liste-cookomix.png) | ![Avis](docs/images/cookomix/05-avis.png) |
+| **Avis complet** (« Lire la suite », photos) | **Visionneuse** des photos des membres |
+| ![Avis](docs/images/cookomix/07-avis-lire-la-suite.png) | ![Visionneuse](docs/images/cookomix/09-visionneuse.png) |
+| **Étapes** : réglages Thermomix convertis pour le Monsieur Cuisine | **Réglages › Autres › Cookomix** |
+| ![Étapes](docs/images/cookomix/04-fiche-etapes.png) | ![Réglages](docs/images/cookomix/11-reglages-cookomix.png) |
+| **Thème clair** | **Accueil** |
+| ![Avis, thème clair](docs/images/cookomix/05-avis-clair.png) | ![Accueil](docs/images/cookomix/01-accueil.png) |
+
+Régénérer : `CookomixScreensTest` (`gradlew :app:testReleaseUnitTest --tests app.toque.CookomixScreensTest`,
+`TOQUE_THEME=light` pour le thème clair), images dans `app/build/screenshots/cookomix/`.
+
+
 🇫🇷 **[Version française](README.fr.md)**
 
 **Toque** is a fast, modern replacement interface for the Lidl **Monsieur Cuisine** kitchen robots:

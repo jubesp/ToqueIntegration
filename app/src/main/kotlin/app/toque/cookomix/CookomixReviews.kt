@@ -146,10 +146,10 @@ object CookomixReviews {
         card.setPadding(Ui.u(20), Ui.u(16), Ui.u(20), Ui.u(16))
         val left = Ui.vertical(a, Gravity.CENTER_HORIZONTAL)
         val avg = if (recipe.ratingCount > 0) recipe.rating else comments.filter { it.rating > 0 }.map { it.rating }.average().takeIf { !it.isNaN() } ?: 0.0
-        left.addView(Ui.text(a, if (avg > 0) String.format(I18n.locale, "%.1f", avg) else "–", 40f, Ui.TEXT, Ui.MEDIUM))
-        left.addView(Ui.text(a, stars(avg), 18f, Ui.ACCENT_INK))
+        left.addView(Ui.text(a, if (avg > 0) String.format(I18n.locale, "%.1f", avg) else "–", 40f, Ui.TEXT, Ui.MEDIUM).apply { gravity = Gravity.CENTER }, Ui.lp())
+        left.addView(Ui.text(a, stars(avg), 18f, Ui.ACCENT_INK).apply { setSingleLine() })
         left.addView(Ui.text(a, if (recipe.ratingCount > 0) tr("%d notes", recipe.ratingCount) else tr("Pas encore noté"), 14f, Ui.TEXT3), Ui.lp(Ui.WRAP, Ui.WRAP, t = 2))
-        card.addView(left, Ui.lp(Ui.WRAP, Ui.WRAP, r = 22))
+        card.addView(left, Ui.lp(Ui.u(118), Ui.WRAP, r = 18))
         val bars = Ui.vertical(a)
         val rated = comments.filter { it.rating > 0 }
         for (n in 5 downTo 1) {

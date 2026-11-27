@@ -362,6 +362,11 @@ object Cookomix {
     private val ACTIVITY_START = Regex("<li class=\"activity [^\"]*activity-item\"")
     private val HEX_ENTITY = Regex("&#x([0-9a-fA-F]{1,6});")
 
+    /** Ce qui a été changé pour le Monsieur Cuisine (lignes « • … » des notes d'une recette adaptée). */
+    fun adaptations(r: Recipe): List<String> =
+        if (TAG_ADAPTED !in r.tags) emptyList()
+        else r.notes.lines().map { it.trim() }.filter { it.startsWith("• ") }.map { it.removePrefix("• ").trim() }.filter { it.isNotEmpty() }
+
     /** Adresse de la page d'une recette Cookomix, d'après ses notes (« Source : … »), ou null. */
     fun pageUrl(r: Recipe): String? =
         Regex("https://www\\.cookomix\\.com/recettes/[^\\s/]+/?").find(r.notes)?.value
