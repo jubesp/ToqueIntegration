@@ -1,0 +1,100 @@
+package app.toque
+
+import android.app.ActivityManager
+import android.app.AlarmManager
+import android.app.Application
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Process
+import app.toque.companion.RobotCompanion
+import app.toque.core.i18n.I18n
+import app.toque.core.robot.RobotProfiles
+import app.toque.machine.MachineClient
+import app.toque.recipes.RecipeRepo
+import app.toque.ui.MainActivity
+import java.util.Locale
+import javax.net.ssl.HttpsURLConnection
+
+open class ToqueApp : Application() {
+    lateinit var prefs: Prefs
+        private set
+    lateinit var log: Logbook
+        private set
+    val machine: MachineClient by lazy { MachineClient(this) }
+    val recipes: RecipeRepo by lazy { RecipeRepo(this, log) }
+    /** toqueapp.org : compte relié, recettes de la communauté. */
+    val site: app.toque.site.SiteAccount by lazy { app.toque.site.SiteAccount(this) }
+    /** Serveur Mealie relié (recettes auto-hébergées, en lecture seule). */
+    val mealie: app.toque.mealie.MealieAccount by lazy { app.toque.mealie.MealieAccount(this) }
+    /** Toque Compagnon (téléphones sur le Wi-Fi) ; processus de l'interface seulement, null s'il n'a pas pu démarrer. */
+    var companion: RobotCompanion? = null
+        private set
+
+    override fun onCreate() {
+        super.onCreate()
+        prefs = Prefs(this)
+        log = Logbook(this)
+        LanguageFiles.install(this, log)
+        I18n.select(I18n.resolve(prefs.language, Locale.getDefault().language).code)
+        app.toque.ui.Ui.setTheme(prefs.lightTheme)
+        app.toque.ui.Ui.setAccent(prefs.accentColor)
+        // Robot choisi : lu par le cœur (recettes, réglages proposés), dans les deux processus.
+        RobotProfiles.active = prefs.robot
+        // Racines récentes absentes d'Android 6 (voir ExtraRoots), pour toutes les connexions HTTPS.
+        try {
+            HttpsURLConnection.setDefaultSSLSocketFactory(ExtraRoots.socketFactory(this))
+        } catch (e: Exception) {
+            log.write("tls", "racines supplémentaires non chargées : $e")
+        }
+        if (!isMainProcess()) return
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            try {
+                log.crash("interface", error)
+                val now = System.currentTimeMillis()
+                val recent = now - prefs.lastCrashMs < 10_000
+                prefs.lastCrashMs = now
+                if (recent) throw error // évite une boucle de relances
+                // Relance discrète de l'interface ; le processus machine, lui, continue.
+                val intent = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                val pi = PendingIntent.getActivity(this, 1, intent, PendingIntent.FLAG_ONE_SHOT)
+                (getSystemService(Context.ALARM_SERVICE) as AlarmManager).set(AlarmManager.RTC, System.currentTimeMillis() + 800, pi)
+                Process.killProcess(Process.myPid())
+                System.exit(10)
+            } catch (_: Throwable) {
+                previous?.uncaughtException(thread, error)
+            }
+        }
+        log.write("interface", "démarrage")
+        startBackground()
+        companion = try {
+            RobotCompanion(this).also {
+                configureCompanion(it)
+                it.start()
+            }
+        } catch (t: Throwable) {
+            log.crash("compagnon", t)
+            null
+        }
+    }
+
+    /** Tâches de fond réseau (heure). Les essais d'interface (Robolectric) n'en lancent aucune. */
+    protected open fun startBackground() {
+        TimeSync.start(this, prefs, log)
+    }
+
+    /** Réglage du compagnon avant son démarrage (essais : port libre sur la boucle locale). */
+    protected open fun configureCompanion(c: RobotCompanion) {}
+
+    private fun isMainProcess(): Boolean {
+        val pid = Process.myPid()
+        val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val name = am.runningAppProcesses?.firstOrNull { it.pid == pid }?.processName ?: return true
+        return name == packageName
+    }
+
+    companion object {
+        fun of(c: Context): ToqueApp = c.applicationContext as ToqueApp
+    }
+}

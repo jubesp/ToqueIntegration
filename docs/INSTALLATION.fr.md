@@ -1,0 +1,185 @@
+# Installer Toque sur le Monsieur Cuisine Connect
+
+🇬🇧 **[English version](INSTALLATION.md)**
+
+> **Sous macOS ?** Voir [docs/MACOS.md](MACOS.md) (`mtkclient` et `tools/setup/toque-setup.sh`
+> à la place de SP Flash Tool et PowerShell).
+
+> **Avec un agent IA** (Claude, ChatGPT…) qui pilote votre PC : donnez-lui le lien du dépôt et
+> demandez-lui de suivre [AGENTS.md](../AGENTS.md). Le script
+> [`tools/setup/toque-setup.ps1`](../tools/setup/toque-setup.ps1) automatise les étapes ci-dessous ;
+> vous pouvez aussi le lancer vous-même (`-Step status` dit où vous en êtes).
+
+Durée : 1 à 2 heures la première fois. Les étapes 1 et 2 (root) sont les plus délicates : une
+erreur peut rendre la tablette du robot inutilisable. Lisez tout avant de commencer.
+
+## Ce qu'il faut
+
+- Un PC Windows avec ADB (les outils de plate-forme Android : `tools\setup\toque-setup.ps1 -Step prepare`
+  les place dans `C:\Toque\platform-tools` ; Android Studio les fournit aussi) et
+  [SP Flash Tool](https://spflashtool.com/download)
+  (v5.1924 testée). L'amont ne fournit que `SP_Flash_Tool_v5.1924_Win.rar`, une archive RAR
+  protégée par le mot de passe AES `spflashtool.com` (indiqué sur cette page), pas un ZIP ; Windows
+  10 et Windows 11 (avant la 23H2) n'ouvrent pas les RAR nativement, il faut l'extraire avec 7-Zip
+  ou WinRAR. Un téléchargement direct *scripté* exige l'en-tête
+  `Referer: https://spflashtool.com/download`, sinon le serveur renvoie du HTML (une personne passe
+  simplement par la page de téléchargement). Les SHA-256 épinglés par le script pour
+  `flash_tool.exe` et `MTK_AllInOne_DA.bin` s'appliquent aux fichiers contenus dans l'archive.
+- Un câble de données **USB-A mâle / USB-A mâle** et un petit tournevis Torx. Un câble USB-A ↔ USB-C
+  ne marche **pas** : le port du robot est un port « appareil », le port USB-C du PC ne le détecte
+  jamais.
+- Le pilote **MediaTek PreLoader USB VCOM** : le chercher sur le
+  [catalogue Microsoft Update](https://www.catalog.update.microsoft.com/), extraire le `.cab` (en
+  gardant le dossier `x64`) et l'installer en administrateur : `pnputil /add-driver cdc-acm.inf /install`.
+  Sous Windows 11, si Windows affiche « Impossible de charger un pilote sur cet appareil :
+  usb2ser.sys », désactiver **l'intégrité de la mémoire** (Sécurité Windows › Sécurité de
+  l'appareil › Isolation du noyau) et redémarrer. La réactiver à la fin (retirer d'abord le pilote :
+  `pnputil /enum-drivers` pour trouver son `oemXX.inf`, puis `pnputil /delete-driver oemXX.inf /uninstall`).
+- Le guide de référence : <https://github.com/EliasKotlyar/Monsieur-Cuisine-Connect-Hack>
+  (fichier de partition `l706_dfbh_v_695scatter.txt` et recovery TWRP `hacks/recovery.img`).
+- L'APK officiel de [Magisk](https://github.com/topjohnwu/Magisk/releases) (v31.0 testée ; Android 6
+  est pris en charge).
+
+> **Allumer le robot câble débranché.** Allumé avec le câble branché, il reste bloqué sur un écran
+> de batterie (charge). Brancher le câble une fois qu'il a démarré. Seule exception : SP Flash Tool,
+> où il faut au contraire allumer le robot *avec* le câble branché.
+
+## 1. Sauvegarde et TWRP
+
+1. Robot éteint (interrupteur arrière). Dévisser la trappe de maintenance sous le robot.
+2. Brancher le PC **uniquement sur le port de droite, marqué « Android USB »** (l'autre peut
+   détruire la carte).
+3. SP Flash Tool, fichier scatter chargé, onglet **Readback** : ajouter `boot` (début `0x1d20000`,
+   longueur `0x1000000`, région `EMMC_USER`) et `recovery` (début `0x2d20000`, longueur
+   `0x1000000`), cliquer sur **Read Back**, puis allumer le robot. On obtient `boot-original.img`
+   et `recovery-original.img` (16 Mo chacun) : **à garder précieusement, c'est votre seule voie
+   de retour.**
+
+   > **SKMC 1100 A1** (étiquette sous le robot, image système `v4.3a_2022-09-15`) : le TWRP du
+   > guide de référence embarque un noyau de 2018 fait pour la carte du SKMC 1200, et sur ce robot
+   > il démarre sans tactile. Avant l'étape 4, reconstruire TWRP autour de votre propre noyau :
+   > placer les deux sauvegardes dans `C:\Toque\backup\`, puis lancer
+   > [`tools\setup\toque-setup.ps1`](../tools/setup/toque-setup.ps1) avec `-Step prepare` (il
+   > télécharge et vérifie l'image TWRP ; ses remarques sur le pilote et SP Flash Tool sont sans
+   > importance si vous les avez déjà), `-Step backup` (les fichiers étant déjà là, il se contente
+   > de les vérifier, et dit quel robot il reconnaît) et `-Step own-twrp`. Ces commandes n'envoient
+   > rien au robot. Utiliser ensuite `C:\Toque\twrp-own-kernel.img` partout où cette page indique
+   > `hacks/recovery.img` (étape 4 ci-dessous, et étape 2 de la section suivante). Si vous laissez
+   > le script flasher (`-Step flash-twrp`), il prend cette image de lui-même.
+4. Onglet **Download**, *Download Only* : cocher uniquement `boot`, avec `hacks/recovery.img`
+   (TWRP). Robot éteint et câble branché, cliquer sur **Download**, puis allumer le robot.
+5. Éteindre le robot, débrancher le câble, rallumer : **TWRP** démarre. Rebrancher le câble :
+   `adb devices` affiche le robot en mode `recovery`.
+
+## 2. ADB et root (Magisk)
+
+1. Depuis le dossier du dépôt, TWRP affiché :
+   ```
+   adb push Magisk-v31.0.apk /tmp/magisk.apk
+   adb push boot-original.img /tmp/boot.img
+   adb push %USERPROFILE%\.android\adbkey.pub /tmp/adbkey.pub
+   adb push tools\robot\twrp-root.sh /tmp/
+   adb shell sh /tmp/twrp-root.sh
+   adb pull /tmp/magisk/new-boot.img boot-magisk.img
+   ```
+   [`twrp-root.sh`](../tools/robot/twrp-root.sh) patche votre `boot` d'origine avec Magisk
+   (`boot-magisk.img`), active ADB dans Android (`/system/build.prop`), supprime
+   `/system/recovery-from-boot.p` (sinon Android remet le recovery d'origine par-dessus TWRP) et
+   autorise la clé ADB de votre PC (aucune confirmation à faire sur l'écran du robot).
+2. SP Flash Tool, *Download Only* : cocher `boot` = `boot-magisk.img` et `recovery` =
+   `hacks/recovery.img`. Robot éteint et câble branché, cliquer sur **Download**, puis allumer le
+   robot.
+3. Éteindre le robot, débrancher le câble, rallumer : l'appli d'origine démarre. Brancher le câble.
+4. `adb install Magisk-v31.0.apk`, puis `adb shell su -c id` et appuyer sur **Autoriser** sur le
+   robot : la commande doit afficher `uid=0`. Toque utilise la **busybox** fournie par Magisk
+   (`/data/adb/magisk/busybox`).
+
+   > **Astuce — Masquer les notifications Magisk :** Pour éviter les messages « Super-utilisateur accordé »
+   > sur l'écran pendant la cuisine, ouvrez Magisk sur le robot (`adb shell monkey -p com.topjohnwu.magisk 1`),
+   > touchez Paramètres (roue dentée) et réglez **Notification super-utilisateur** sur **Aucune**.
+
+Pour retirer le root : flasher `boot-original.img` dans `boot` avec SP Flash Tool (et
+`recovery-original.img` dans `recovery` pour retirer TWRP).
+
+Facultatif, pour ne plus avoir besoin du câble : activer ADB par Wi-Fi.
+
+```
+adb shell su -c "setprop persist.adb.tcp.port 5555"
+adb reboot
+```
+
+À faire sur le réseau de la maison. Comme l'étape 2.1 a déjà enregistré la clé
+`%USERPROFILE%\.android\adbkey.pub` de votre PC parmi les clés autorisées d'Android, seuls vos
+ordinateurs appairés peuvent s'y connecter et exécuter des commandes (les appareils inconnus sont
+refusés). Une fois activé, vous pouvez débrancher le câble USB et effectuer toutes les étapes et
+mises à jour par Wi-Fi (`tools\install-robot.ps1 -Ip <IP du robot>`).
+
+## 3. Installer Toque
+
+1. Télécharger le dernier `Toque-X.Y.Z.apk` sur la
+   [page des versions](https://github.com/Wuki60/MrCuisineVibeConnect/releases), ou le compiler dans
+   Android Studio (voir README). Avec un APK téléchargé, ajouter `-Apk <chemin de l'APK>` ci-dessous.
+2. `powershell -ExecutionPolicy Bypass -File tools\install-robot.ps1`
+   (par Wi-Fi : ajouter `-Ip <adresse IP du robot>`). Il utilise l'adb de
+   `C:\Toque\platform-tools` quand il existe, et s'arrête en disant pourquoi si l'installation est
+   refusée ou si le fichier présent sur le robot n'est pas celui qu'il a envoyé.
+3. Le script autorise aussi Toque dans Magisk (aucune fenêtre sur le robot : celle de Magisk se
+   ferme seule au bout de 10 s puis refuse), installe un script de démarrage qui redonne cette
+   autorisation à chaque allumage (Magisk 31 oublie l'autorisation de toutes les applis à chaque
+   démarrage d'un appareil Android 6) et ouvre Toque en premier, et vérifie que la busybox de
+   Magisk, dont Toque a besoin pour le port série, est en place.
+
+## 4. Premier essai — bol VIDE
+
+1. Au premier démarrage, Toque demande « Quel est votre robot ? » : choisissez **Monsieur Cuisine
+   Connect** (jusque-là, il n'envoie rien à la base moteur). Puis **Réglages › Avancé › Machine › Machine réelle › Appliquer**
+   (en mode Démo, un point marque « Avancé » dans le menu à gauche des Réglages). Toque coupe l'appli
+   d'origine du moteur (réversible) et ouvre le port série.
+2. Réussite : la pastille en haut à droite doit afficher « Base prête » **sans marqueur Démo ni Jumeau**
+   **et** le journal doit afficher la liaison réelle, par ex. `liaison ouverte : Base moteur (/dev/ttyMT…)` ;
+   `Démo (base simulée)` signifie que le mode n'a pas été appliqué. Sinon : Réglages › Avancé ›
+   Diagnostic de la base moteur (trames reçues ?) et Journal.
+3. Bol vide, couvercle fermé, **main près de l'interrupteur principal** :
+   - Cuisson manuelle : 10 s, vitesse 2 → le moteur tourne puis s'arrête seul.
+   - Ouvrir le couvercle pendant un essai → arrêt immédiat, « Pause : couvercle ouvert ».
+   - 30 s à 37 °C, vitesse 1 → la température affichée monte.
+   - Balance : poser un objet de poids connu, Tare.
+   - Diagnostic : retirer le bol et regarder « Bol détecté ». S'il change bien, vous pouvez
+     activer Réglages › Sécurité › « Exiger la détection du bol ».
+4. Au moindre comportement anormal : **interrupteur principal**, puis
+   `tools\restore-robot.ps1`.
+
+## 5. Toque au démarrage
+
+Le robot n'a ni bouton Accueil ni bouton Retour Android. Toque s'ouvre tout seul au démarrage du
+robot, et quand il ouvre une autre appli (l'appli d'origine, les paramètres Android), un bouton
+**« Retour à Toque »** reste affiché par-dessus (on peut le déplacer). Accès caché aux paramètres
+Android : 5 appuis rapides sur l'heure en haut à droite.
+
+Pour ouvrir Toque depuis le PC : `adb shell am start -n app.toque/.ui.MainActivity`.
+
+## 6. Recettes Lidl
+
+**Réglages › Recettes › Lidl › Synchroniser** (le robot doit être en Wi-Fi). Toque télécharge les
+recettes officielles du Monsieur Cuisine connect sur monsieur-cuisine.com, puis leurs photos :
+environ 15 minutes la première fois, ensuite seulement les recettes nouvelles ou modifiées. La
+synchro se refait chaque nuit à 3 h 30. Les recettes sont dans la langue de l'interface (le
+français par défaut).
+
+Autre source : **« Importer de l'appli d'origine »** copie les recettes déjà présentes dans l'appli
+d'origine (elles remplacent celles du site). Si elle n'en a pas encore, **« Ouvrir l'appli
+d'origine »** la laisse se synchroniser avec les serveurs Lidl ; revenez avec le bouton **« Retour
+à Toque »**. Si cet import échoue, le fichier `Android/data/app.toque/files/diagnostic-recettes.txt`
+décrit la base d'origine.
+
+## Revenir à l'appli d'origine
+
+- Depuis Toque : Réglages › Avancé › « Revenir à l'appli d'origine ».
+- Depuis le PC : `powershell -ExecutionPolicy Bypass -File tools\restore-robot.ps1 -Uninstall`
+
+Toque lui-même ne fait que désactiver le service moteur de l'appli d'origine, ce que ces deux
+méthodes annulent ; Toque ne s'ouvre alors plus au démarrage. Ce que l'installation a changé en
+dessous reste en place : Magisk dans `boot`, TWRP dans `recovery`, trois lignes ADB dans
+`/system/build.prop` et le fichier `/system/recovery-from-boot.p` supprimé (copies des originaux :
+`C:\Toque\system-originals`). Pour retirer aussi Magisk et TWRP, reflasher vos deux images
+d'origine (fin de la section 2).
