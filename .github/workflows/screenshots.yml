@@ -8,6 +8,7 @@ on:
     branches: ['claude/**']
     paths:
       - 'app/src/main/kotlin/app/toque/cookomix/**'
+      - 'app/src/main/assets/lang/en.json'
       - 'app/src/main/kotlin/app/toque/ui/**'
       - 'app/src/test/kotlin/app/toque/CookomixScreensTest.kt'
       - '.github/workflows/screenshots.yml'
@@ -26,22 +27,27 @@ jobs:
           java-version: 17
       - name: Captures (sombre puis clair)
         run: |
-          ./gradlew --no-daemon :app:testReleaseUnitTest --tests 'app.toque.CookomixScreensTest' || echo "TEST_FAILED=1" >> "$GITHUB_ENV"
-          TOQUE_THEME=light ./gradlew --no-daemon :app:testReleaseUnitTest --tests 'app.toque.CookomixScreensTest' --rerun || echo "TEST_FAILED=1" >> "$GITHUB_ENV"
+          mkdir -p /tmp/shots
+          ./gradlew --no-daemon :app:testReleaseUnitTest --tests 'app.toque.CookomixScreensTest' > /tmp/shots/gradle-sombre.log 2>&1 || echo "TEST_FAILED=1" >> "$GITHUB_ENV"
+          cp -r app/build/screenshots/cookomix /tmp/shots/ 2>/dev/null || true
+          find app/build/test-results -name '*Cookomix*.xml' -exec cp {} /tmp/shots/sombre.xml \; 2>/dev/null || true
+          TOQUE_THEME=light ./gradlew --no-daemon :app:testReleaseUnitTest --tests 'app.toque.CookomixScreensTest' --rerun > /tmp/shots/gradle-clair.log 2>&1 || echo "TEST_FAILED=1" >> "$GITHUB_ENV"
+          tail -40 /tmp/shots/gradle-sombre.log
           ls -la app/build/screenshots/cookomix || true
       - name: Rapport en cas d'échec
         if: env.TEST_FAILED == '1'
-        run: find app/build/test-results -name '*.xml' -exec grep -l "<failure" {} \; | xargs -r cat | head -200
+        run: grep -h -A30 "<failure" app/build/test-results/testReleaseUnitTest/*.xml || true
       - name: Publier sur la branche screenshots
+        if: always()
         run: |
-          mkdir -p /tmp/shots && cp -r app/build/screenshots/cookomix /tmp/shots/ 2>/dev/null || true
-          find app/build/test-results -name '*Cookomix*.xml' -exec cp {} /tmp/shots/ \; 2>/dev/null || true
+          mkdir -p /tmp/shots/cookomix && cp -r app/build/screenshots/cookomix/. /tmp/shots/cookomix/ 2>/dev/null || true
+          find app/build/test-results -name '*Cookomix*.xml' -exec cp {} /tmp/shots/clair.xml \; 2>/dev/null || true
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout --orphan screenshots-tmp
           git rm -rq --cached . && git clean -fdq
           mkdir -p docs/images && cp -r /tmp/shots/cookomix docs/images/ 2>/dev/null || true
-          cp /tmp/shots/*.xml . 2>/dev/null || true
+          cp /tmp/shots/*.xml /tmp/shots/*.log . 2>/dev/null || true
           git add -A
           git commit -qm "Captures Cookomix ($GITHUB_SHA)"
           git push -f origin HEAD:screenshots
