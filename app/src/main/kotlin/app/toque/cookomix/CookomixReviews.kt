@@ -56,7 +56,6 @@ object CookomixReviews {
     /** Au-delà, l'avis est replié sur [FOLDED_LINES] lignes avec « Lire la suite ». */
     private const val FOLD_CHARS = 280
     private const val FOLDED_LINES = 5
-    private const val GALLERY_MAX = 30
 
     private enum class Filter { ALL, PHOTOS, RATED, QUESTIONS }
 
@@ -111,46 +110,36 @@ object CookomixReviews {
         val outer = box
         @Suppress("NAME_SHADOWING") val box = Ui.vertical(a).apply { tag = CONTENT_TAG }
         outer.addView(box)
-        val shots = comments.flatMap { cm -> cm.photos.map { Shot(it, shown(cm.author), cm.date, cm.rating) } }.take(GALLERY_MAX)
-        box.addView(summary(a, recipe, comments, shots.size), Ui.lp(t = 12))
-        if (shots.isNotEmpty()) {
-            box.addView(label(a, tr("Photos des membres") + " · " + shots.size), Ui.lp(t = 18))
-            val strip = Ui.horizontal(a)
-            for ((i, s) in shots.withIndex()) {
-                val img = thumb(a, 14f) { viewer(a, shots, i) }
-                strip.addView(img, LinearLayout.LayoutParams(Ui.u(138), Ui.u(104)).apply { rightMargin = Ui.u(10) })
-                photo(a, s.url, img, Ui.u(138))
-            }
-            box.addView(HorizontalScrollView(a).apply { isHorizontalScrollBarEnabled = false; addView(strip) }, Ui.lp(t = 10))
-        }
+        // En tête, la note du site comme sur cookomix.com : « 4,8 ★★★★★ 126 notes ».
+        box.addView(score(a, recipe, comments), Ui.lp(t = 10))
 
         val list = Ui.vertical(a)
         val chips = Ui.horizontal(a)
         var filter = st.filter
-        fun count(f: Filter) = comments.count { matches(it, f) }
         fun fill() {
             chips.removeAllViews()
-            for (f in Filter.values()) {
-                val n = count(f)
-                if (f != Filter.ALL && n == 0) continue
+            for (f in listOf(Filter.ALL, Filter.PHOTOS, Filter.QUESTIONS)) {
+                if (f != Filter.ALL && comments.none { matches(it, f) }) continue
                 val name = when (f) {
-                    Filter.ALL -> tr("Tous")
                     Filter.PHOTOS -> tr("Avec photos")
-                    Filter.RATED -> tr("Notes")
                     Filter.QUESTIONS -> tr("Questions")
+                    else -> tr("Tous")
                 }
-                chips.addView(Ui.toggleChip(a, "$name  $n", f == filter) { filter = f; st.filter = f; fill() }, Ui.lp(Ui.WRAP, Ui.WRAP, r = 10))
+                chips.addView(smallChip(a, name, f == filter) { filter = f; st.filter = f; fill() }, Ui.lp(Ui.WRAP, Ui.WRAP, r = 8))
             }
             list.removeAllViews()
-            for (cm in comments.filter { matches(it, filter) }) list.addView(row(a, cm), Ui.lp(t = 12))
+            for ((k, cm) in comments.filter { matches(it, filter) }.withIndex()) {
+                if (k > 0) list.addView(Ui.divider(a), Ui.lp(Ui.MATCH, 1, t = 16))
+                list.addView(row(a, cm), Ui.lp(t = 16))
+            }
         }
         fill()
-        box.addView(HorizontalScrollView(a).apply { isHorizontalScrollBarEnabled = false; addView(chips) }, Ui.lp(t = 20))
+        box.addView(chips, Ui.lp(t = 14))
         box.addView(list, Ui.lp(t = 4))
         val postId = Cookomix.postId(recipe)
         if (st.more && postId != null) {
-            val more = Ui.button(a, if (st.loading) tr("Chargement des avis…") else tr("Voir plus d'avis (%d affichés)", comments.size),
-                Ui.Style.SECONDARY, Icon.Kind.DOWNLOAD, height = 52, textSize = 17f) { loadMore(a, recipe, outer, state, st, postId) }
+            val more = Ui.button(a, if (st.loading) tr("Chargement des avis…") else tr("Voir plus d'avis"),
+                Ui.Style.GHOST, height = 52, textSize = 17f) { loadMore(a, recipe, outer, state, st, postId) }
             Ui.setButtonEnabled(more, !st.loading)
             box.addView(more, Ui.lp(Ui.WRAP, Ui.WRAP, t = 16))
         }
@@ -220,48 +209,27 @@ object CookomixReviews {
         Filter.QUESTIONS -> cm.kind == Cookomix.CommentKind.QUESTION
     }
 
-    /** Note du site en grand, et ce que contient la page (avis, photos, questions). */
-    private fun summary(a: MainActivity, recipe: Recipe, comments: List<Cookomix.Comment>, photos: Int): View {
-        val card = Ui.horizontal(a)
-        card.background = Ui.round(Ui.SURFACE2, 20f)
-        card.setPadding(Ui.u(20), Ui.u(16), Ui.u(20), Ui.u(16))
-        val left = Ui.vertical(a, Gravity.CENTER_HORIZONTAL)
+    /** « 4,8 ★★★★★ 126 notes », sur une ligne. */
+    private fun score(a: MainActivity, recipe: Recipe, comments: List<Cookomix.Comment>): View {
+        val row = Ui.horizontal(a)
         val avg = if (recipe.ratingCount > 0) recipe.rating else comments.filter { it.rating > 0 }.map { it.rating }.average().takeIf { !it.isNaN() } ?: 0.0
-        left.addView(Ui.text(a, if (avg > 0) String.format(I18n.locale, "%.1f", avg) else "–", 40f, Ui.TEXT, Ui.MEDIUM).apply { gravity = Gravity.CENTER }, Ui.lp())
-        left.addView(Ui.text(a, stars(avg), 18f, Ui.ACCENT_INK).apply { setSingleLine() })
-        left.addView(Ui.text(a, if (recipe.ratingCount > 0) tr("%d notes", recipe.ratingCount) else tr("Pas encore noté"), 14f, Ui.TEXT3), Ui.lp(Ui.WRAP, Ui.WRAP, t = 2))
-        card.addView(left, Ui.lp(Ui.u(118), Ui.WRAP, r = 18))
-        val bars = Ui.vertical(a)
-        val rated = comments.filter { it.rating > 0 }
-        for (n in 5 downTo 1) {
-            val k = rated.count { it.rating == n }
-            val line = Ui.horizontal(a)
-            line.addView(Ui.text(a, "$n★", 14f, Ui.TEXT2), Ui.lp(Ui.u(34), Ui.WRAP))
-            val track = FrameLayout(a)
-            track.background = Ui.round(Ui.SURFACE3, 6f)
-            val fill = View(a).apply { background = Ui.round(Ui.ACCENT, 6f) }
-            val frac = if (rated.isEmpty()) 0f else k.toFloat() / rated.size
-            track.addView(fill, FrameLayout.LayoutParams(0, FrameLayout.LayoutParams.MATCH_PARENT))
-            track.post { fill.layoutParams = FrameLayout.LayoutParams((track.width * frac).toInt(), FrameLayout.LayoutParams.MATCH_PARENT); fill.requestLayout() }
-            line.addView(track, LinearLayout.LayoutParams(0, Ui.u(10), 1f))
-            line.addView(Ui.text(a, k.toString(), 14f, Ui.TEXT3).apply { gravity = Gravity.END }, Ui.lp(Ui.u(30), Ui.WRAP))
-            bars.addView(line, Ui.lp(t = if (n == 5) 0 else 5))
-        }
-        card.addView(bars, LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
-        val facts = Ui.vertical(a)
-        facts.addView(fact(a, Icon.Kind.STAR, tr("%d avis", comments.size)))
-        facts.addView(fact(a, Icon.Kind.SCREEN, tr("%d photos", photos)), Ui.lp(t = 6))
-        val q = comments.count { it.kind == Cookomix.CommentKind.QUESTION }
-        if (q > 0) facts.addView(fact(a, Icon.Kind.INFO, if (q == 1) tr("1 question") else tr("%d questions", q)), Ui.lp(t = 6))
-        card.addView(facts, Ui.lp(Ui.WRAP, Ui.WRAP, l = 22))
-        return card
+        if (avg <= 0) return row.apply { addView(Ui.text(a, tr("Pas encore noté"), 16f, Ui.TEXT2)) }
+        row.addView(Ui.text(a, String.format(I18n.locale, "%.1f", avg), 34f, Ui.TEXT, Ui.MEDIUM))
+        val col = Ui.vertical(a)
+        col.addView(Ui.text(a, stars(avg), 19f, Ui.ACCENT_INK).apply { setSingleLine() })
+        if (recipe.ratingCount > 0) col.addView(Ui.text(a, tr("%d notes", recipe.ratingCount), 15f, Ui.TEXT2))
+        row.addView(col, Ui.lp(Ui.WRAP, Ui.WRAP, l = 12))
+        return row
     }
 
-    private fun fact(a: MainActivity, icon: Icon.Kind, text: String): View {
-        val row = Ui.horizontal(a)
-        row.addView(Icon(a, icon, Ui.TEXT2), LinearLayout.LayoutParams(Ui.u(18), Ui.u(18)).apply { rightMargin = Ui.u(8) })
-        row.addView(Ui.text(a, text, 15f, Ui.TEXT2))
-        return row
+    /** Puce de filtre discrète (texte seul, fond seulement quand elle est choisie). */
+    private fun smallChip(a: MainActivity, label: String, selected: Boolean, onClick: () -> Unit): TextView {
+        val t = Ui.text(a, label, 15f, if (selected) Ui.ON_ACCENT else Ui.TEXT2, Ui.MEDIUM)
+        t.setPadding(Ui.u(14), Ui.u(7), Ui.u(14), Ui.u(7))
+        t.background = Ui.pressable(if (selected) Ui.round(Ui.ACCENT, 40f) else Ui.round(0, 40f, Ui.STROKE, 1f), 40f)
+        t.isClickable = true
+        t.setOnClickListener { onClick() }
+        return t
     }
 
     private fun stars(v: Double): String {
@@ -269,39 +237,37 @@ object CookomixReviews {
         return "★".repeat(full) + "☆".repeat(5 - full)
     }
 
-    private fun label(a: MainActivity, t: String): TextView =
-        Ui.text(a, t.uppercase(), 14f, Ui.TEXT2, Ui.MEDIUM).apply { letterSpacing = 0.08f }
-
-    /** Un avis : avatar, nom, note ou nature, date ; texte replié s'il est long ; ses photos. */
+    /**
+     * Un avis, à la façon de cookomix.com : avatar, nom et note sur une ligne, la date dessous ; le texte
+     * (replié s'il est long) ; les photos en grand, deux par ligne ; les réponses repliées.
+     */
     private fun row(a: MainActivity, cm: Cookomix.Comment): View {
         val box = Ui.vertical(a)
-        box.background = Ui.round(Ui.SURFACE2, 18f)
-        box.setPadding(Ui.u(16), Ui.u(14), Ui.u(16), Ui.u(14))
         val head = Ui.horizontal(a)
         val author = shown(cm.author).ifBlank { tr("Anonyme") }
-        head.addView(avatar(a, cm, author), LinearLayout.LayoutParams(Ui.u(46), Ui.u(46)).apply { rightMargin = Ui.u(12) })
+        head.addView(avatar(a, cm, author), LinearLayout.LayoutParams(Ui.u(42), Ui.u(42)).apply { rightMargin = Ui.u(12) })
         val who = Ui.vertical(a)
-        who.addView(Ui.ellipsize(Ui.text(a, author, 17f, Ui.TEXT, Ui.MEDIUM)))
         val line = Ui.horizontal(a)
+        line.addView(Ui.ellipsize(Ui.text(a, author, 17f, Ui.TEXT, Ui.MEDIUM)), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
         when (cm.kind) {
-            Cookomix.CommentKind.RATED -> line.addView(Ui.text(a, stars(cm.rating.toDouble()), 16f, Ui.ACCENT_INK))
-            Cookomix.CommentKind.QUESTION -> line.addView(Ui.chip(a, tr("Question"), Icon.Kind.INFO, Ui.ACCENT_INK, Ui.ACCENT_DIM, 13f))
-            Cookomix.CommentKind.COMMENT -> line.addView(Ui.chip(a, tr("Commentaire"), null, Ui.TEXT2, Ui.SURFACE3, 13f))
+            Cookomix.CommentKind.RATED -> line.addView(Ui.text(a, stars(cm.rating.toDouble()), 15f, Ui.ACCENT_INK), Ui.lp(Ui.WRAP, Ui.WRAP, l = 8))
+            Cookomix.CommentKind.QUESTION -> line.addView(Ui.text(a, tr("Question"), 14f, Ui.ACCENT_INK, Ui.MEDIUM), Ui.lp(Ui.WRAP, Ui.WRAP, l = 8))
+            Cookomix.CommentKind.COMMENT -> {}
         }
-        if (cm.date.isNotBlank()) line.addView(Ui.text(a, cm.date, 14f, Ui.TEXT3), Ui.lp(Ui.WRAP, Ui.WRAP, l = 10))
-        who.addView(line, Ui.lp(t = 2))
+        who.addView(line)
+        if (cm.date.isNotBlank()) who.addView(Ui.text(a, cm.date, 14f, Ui.TEXT3))
         head.addView(who, LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
         box.addView(head)
 
         val text = shown(cm.text)
         if (text.isNotBlank()) {
-            val body = Ui.text(a, text, 17f, Ui.TEXT).apply { setLineSpacing(0f, 1.14f) }
+            val body = Ui.text(a, text, 17f, Ui.TEXT).apply { setLineSpacing(0f, 1.16f) }
             box.addView(body, Ui.lp(t = 10))
             if (text.length > FOLD_CHARS) {
                 body.maxLines = FOLDED_LINES
                 body.ellipsize = TextUtils.TruncateAt.END
-                val more = Ui.text(a, tr("Lire la suite"), 16f, Ui.ACCENT_INK, Ui.MEDIUM)
-                more.setPadding(0, Ui.u(8), Ui.u(20), Ui.u(4))
+                val more = Ui.text(a, tr("Lire la suite"), 15f, Ui.ACCENT_INK, Ui.MEDIUM)
+                more.setPadding(0, Ui.u(6), Ui.u(20), Ui.u(2))
                 more.isClickable = true
                 more.setOnClickListener {
                     val open = body.maxLines == FOLDED_LINES
@@ -311,16 +277,43 @@ object CookomixReviews {
                 box.addView(more, Ui.lp(Ui.WRAP, Ui.WRAP))
             }
         }
-        for (r in cm.replies) box.addView(reply(a, r), Ui.lp(t = 10))
         if (cm.photos.isNotEmpty()) {
             val shots = cm.photos.map { Shot(it, author, cm.date, cm.rating) }
-            val strip = Ui.horizontal(a)
-            for ((i, p) in cm.photos.withIndex()) {
-                val img = thumb(a, 12f) { viewer(a, shots, i) }
-                strip.addView(img, LinearLayout.LayoutParams(Ui.u(150), Ui.u(100)).apply { rightMargin = Ui.u(10) })
-                photo(a, p, img, Ui.u(150))
+            // Deux photos par ligne, en grand (trois et plus : les deux premières, et « +N » sur la seconde).
+            val grid = Ui.horizontal(a)
+            val shownPhotos = cm.photos.take(2)
+            for ((k, p) in shownPhotos.withIndex()) {
+                val cell = FrameLayout(a)
+                val img = thumb(a, 14f) { viewer(a, shots, k) }
+                cell.addView(img, Ui.flp())
+                photo(a, p, img, Ui.u(250))
+                val extra = cm.photos.size - shownPhotos.size
+                if (k == shownPhotos.size - 1 && extra > 0) {
+                    cell.addView(Ui.text(a, "+$extra", 26f, 0xFFFFFFFF.toInt(), Ui.MEDIUM).apply {
+                        gravity = Gravity.CENTER
+                        background = Ui.round(0x66000000, 14f)
+                        isClickable = false
+                    }, Ui.flp())
+                }
+                grid.addView(cell, LinearLayout.LayoutParams(0, Ui.u(150), 1f).apply { if (k == 0 && shownPhotos.size > 1) rightMargin = Ui.u(8) })
             }
-            box.addView(HorizontalScrollView(a).apply { isHorizontalScrollBarEnabled = false; addView(strip) }, Ui.lp(t = 12))
+            if (shownPhotos.size == 1) grid.addView(View(a), LinearLayout.LayoutParams(0, 0, 1f).apply { leftMargin = Ui.u(8) })
+            box.addView(grid, Ui.lp(t = 12))
+        }
+        if (cm.replies.isNotEmpty()) {
+            val replies = Ui.vertical(a).apply { visibility = View.GONE }
+            for (r in cm.replies) replies.addView(reply(a, r), Ui.lp(t = 10))
+            val n = cm.replies.size
+            val toggle = Ui.text(a, if (n == 1) tr("1 réponse") else tr("%d réponses", n), 15f, Ui.TEXT2, Ui.MEDIUM)
+            toggle.setPadding(0, Ui.u(10), Ui.u(20), Ui.u(2))
+            toggle.isClickable = true
+            toggle.setOnClickListener {
+                val open = replies.visibility != View.VISIBLE
+                replies.visibility = if (open) View.VISIBLE else View.GONE
+                toggle.text = if (open) tr("Masquer les réponses") else if (n == 1) tr("1 réponse") else tr("%d réponses", n)
+            }
+            box.addView(toggle, Ui.lp(Ui.WRAP, Ui.WRAP))
+            box.addView(replies)
         }
         return box
     }
@@ -342,7 +335,7 @@ object CookomixReviews {
     }
 
     /** Photo de profil ronde, ou ses initiales sur une couleur tirée de son nom. */
-    private fun avatar(a: MainActivity, cm: Cookomix.Comment, author: String): View = avatarOf(a, author, cm.avatar, 46)
+    private fun avatar(a: MainActivity, cm: Cookomix.Comment, author: String): View = avatarOf(a, author, cm.avatar, 42)
 
     private fun avatarOf(a: MainActivity, author: String, url: String, sizeDp: Int): View {
         val frame = FrameLayout(a)

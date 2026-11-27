@@ -98,7 +98,7 @@ class RecipeScreen(a: MainActivity, val recipe: Recipe) : Screen(a) {
         // Recette de la communauté : sa langue seulement si ce n'est pas celle de l'interface.
         if (recipe.language.isNotBlank() && recipe.source != RecipeSource.COOKOMIX && !(community && recipe.language.substringBefore('-') == I18n.code.substringBefore('-')))
             byline += tr("Recette en %s", java.util.Locale.forLanguageTag(recipe.language).getDisplayLanguage(I18n.locale))
-        if (recipe.ratingCount > 0) byline += "★ " + tr("%s/5 · %d notes", rating(recipe.rating), recipe.ratingCount)
+        if (recipe.ratingCount > 0 && recipe.source != RecipeSource.COOKOMIX) byline += "★ " + tr("%s/5 · %d notes", rating(recipe.rating), recipe.ratingCount)
         // Une ligne chacun : sur une seule, la note était coupée (« 124… ») dès que l'auteur est long.
         byline.forEachIndexed { i, line ->
             left.addView(Ui.ellipsize(Ui.text(c, line, 16f, Ui.TEXT2)), Ui.lp(t = if (i == 0 && recipe.source != RecipeSource.COOKOMIX) 10 else if (i == 0) 6 else 2))

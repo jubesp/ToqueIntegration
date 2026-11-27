@@ -33,10 +33,13 @@ object CookomixBadges {
     /** Un réglage a été changé pour le Monsieur Cuisine (mot-clé « Adaptée MCC »). */
     fun adapted(tags: List<String>): Boolean = Cookomix.TAG_ADAPTED in tags
 
-    /** Texte du badge des vignettes de la liste. */
-    fun cardBadge(tags: List<String>): String = if (adapted(tags)) tr("Cookomix · adaptée") else tr("Cookomix · Connect ✓")
+    /** Texte du badge des vignettes : « Cookomix », et « adaptée » seulement quand un réglage a changé. */
+    fun cardBadge(tags: List<String>): String = if (adapted(tags)) tr("Cookomix · adaptée") else "Cookomix"
 
-    /** En-tête de la fiche : logo et auteur, puis le signe « compatible » ou « adaptée ». */
+    /**
+     * En-tête de la fiche, sobre : le logo et l'auteur ; puis la note et le signe sur une seule ligne
+     * (« ★ 4,8 · 126 notes · ✓ Connect », ou « Adaptée › » qui ouvre le détail).
+     */
     fun header(a: MainActivity, r: Recipe): View {
         val col = Ui.vertical(a)
         val row = Ui.horizontal(a)
@@ -44,20 +47,28 @@ object CookomixBadges {
         if (bmp != null) {
             val img = ImageView(a).apply { setImageBitmap(bmp); scaleType = ImageView.ScaleType.FIT_START; adjustViewBounds = true }
             img.contentDescription = "Cookomix"
-            row.addView(img, LinearLayout.LayoutParams(Ui.u(22) * bmp.width / bmp.height, Ui.u(22)))
+            row.addView(img, LinearLayout.LayoutParams(Ui.u(20) * bmp.width / bmp.height, Ui.u(20)))
         } else row.addView(Ui.text(a, "cookomix", 17f, 0xFF539332.toInt(), Ui.MEDIUM))
         if (r.author.isNotBlank()) row.addView(Ui.ellipsize(Ui.text(a, tr("par %s", r.author), 16f, Ui.TEXT2)), Ui.lp(Ui.WRAP, Ui.WRAP, l = 10))
         col.addView(row)
 
-        val changes = Cookomix.adaptations(r)
-        val isAdapted = adapted(r.tags) || changes.isNotEmpty()
-        val chip = if (isAdapted) Ui.chip(a, tr("Adaptée au Monsieur Cuisine · détails"), Icon.Kind.EDIT, Ui.ACCENT_INK, Ui.ACCENT_DIM, 14f)
-        else Ui.chip(a, tr("Compatible Monsieur Cuisine Connect"), Icon.Kind.CHECK, Ui.OK, (Ui.OK and 0x00FFFFFF) or 0x2E000000, 14f)
-        if (isAdapted) {
-            chip.isClickable = true
-            chip.setOnClickListener { details(a, changes) }
+        val line = Ui.horizontal(a)
+        if (r.ratingCount > 0) {
+            line.addView(Ui.text(a, "★ " + String.format(app.toque.core.i18n.I18n.locale, "%.1f", r.rating), 16f, Ui.ACCENT_INK, Ui.MEDIUM))
+            line.addView(Ui.text(a, " · " + tr("%d notes", r.ratingCount) + " · ", 16f, Ui.TEXT2))
         }
-        col.addView(chip, Ui.lp(Ui.WRAP, Ui.WRAP, t = 8))
+        val changes = Cookomix.adaptations(r)
+        if (adapted(r.tags) || changes.isNotEmpty()) {
+            val t = Ui.text(a, tr("Adaptée ›"), 16f, Ui.ACCENT_INK, Ui.MEDIUM)
+            t.isClickable = true
+            t.setPadding(0, Ui.u(6), Ui.u(12), Ui.u(6))
+            t.setOnClickListener { details(a, changes) }
+            line.addView(t)
+        } else {
+            line.addView(Icon(a, Icon.Kind.CHECK, Ui.OK), LinearLayout.LayoutParams(Ui.u(16), Ui.u(16)).apply { rightMargin = Ui.u(4) })
+            line.addView(Ui.text(a, "Connect", 16f, Ui.OK, Ui.MEDIUM))
+        }
+        col.addView(line, Ui.lp(t = 4))
         return col
     }
 

@@ -9,10 +9,10 @@ Captures rendues à 1024 × 600, la taille de l'écran du robot. Recettes, avis 
 pour les captures (rien n'est copié de cookomix.com) : sur le robot, ce sont ceux du site. Le logo
 appartient à Cookomix ; ce projet n'est pas affilié à Cookomix.
 
-| Liste : signe **Connect ✓** ou **adaptée** sur chaque recette | Fiche : logo, signe « Compatible Monsieur Cuisine Connect » |
+| Liste : « Cookomix », et « adaptée » quand un réglage a changé | Fiche : logo, note, ✓ Connect |
 |---|---|
 | ![Liste Cookomix](docs/images/cookomix/02-liste-cookomix.png) | ![Fiche](docs/images/cookomix/03-fiche-ingredients.png) |
-| Onglet **Avis** : note, répartition, photos des membres, filtres | **Avis complet** (« Lire la suite », photos) |
+| Onglet **Avis** : la note du site, filtres, avis et photos des membres | **Avis complet** (« Lire la suite ») |
 | ![Avis](docs/images/cookomix/05-avis.png) | ![Avis](docs/images/cookomix/07-avis-lire-la-suite.png) |
 | **Réponses** aux avis | **Voir plus d'avis**, page après page |
 | ![Réponses](docs/images/cookomix/07b-avis-reponses.png) | ![Plus d'avis](docs/images/cookomix/09b-avis-qr-code.png) |

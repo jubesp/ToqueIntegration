@@ -276,7 +276,7 @@ class CookomixScreensTest {
 
         activity.push(RecipeScreen(activity, app.recipes.get(risotto.id)!!))
         idle(3)
-        assertNotNull(findText(activity.window.decorView, "Compatible Monsieur Cuisine Connect"))
+        assertNotNull(findText(activity.window.decorView, "Connect"))
         shot("03-fiche-ingredients")
         click("Étapes")
         shot("04-fiche-etapes")
@@ -286,16 +286,18 @@ class CookomixScreensTest {
         find(activity.window.decorView, ScrollView::class.java) { findText(it, "Sophie_cuisine") != null }?.scrollTo(0, 330)
         shot("06-avis-suite")
         click("Lire la suite")
-        find(activity.window.decorView, ScrollView::class.java) { findText(it, "Sophie_cuisine") != null }?.scrollTo(0, 560)
+        click("2 réponses")
+        find(activity.window.decorView, ScrollView::class.java) { findText(it, "Sophie_cuisine") != null }?.scrollTo(0, 520)
         shot("07b-avis-reponses")
         find(activity.window.decorView, ScrollView::class.java) { findText(it, "Sophie_cuisine") != null }?.scrollTo(0, 330)
         shot("07-avis-lire-la-suite")
         click("Avec photos", exact = false)
         find(activity.window.decorView, ScrollView::class.java) { findText(it, "Sophie_cuisine") != null }?.scrollTo(0, 0)
         shot("08-avis-filtre-photos")
-        // Galerie : la première photo, en grand.
-        val gallery = find(activity.window.decorView, HorizontalScrollView::class.java) { it.getChildAt(0).let { s -> s is ViewGroup && s.childCount > 0 && s.getChildAt(0) is ImageView } }
-        (((gallery!!.getChildAt(0)) as ViewGroup).getChildAt(1)).performClick()
+        // Première photo d'un avis, en grand.
+        find(activity.window.decorView, ScrollView::class.java) { findText(it, "Sophie_cuisine") != null }?.scrollTo(0, 0)
+        idle(2)
+        find(activity.window.decorView, ImageView::class.java) { it.isClickable && it.width > 200 }!!.performClick()
         idle(3)
         shot("09-visionneuse")
         activity.closeOverlay()
@@ -306,7 +308,7 @@ class CookomixScreensTest {
         activity.push(RecipeScreen(activity, app.recipes.get(brioche.id)!!))
         idle(3)
         shot("10-fiche-adaptee")
-        click("Adaptée au Monsieur Cuisine · détails")
+        click("Adaptée ›")
         shot("10b-details-adaptation")
         activity.closeOverlay()
 
