@@ -6,17 +6,20 @@
 ## Cookomix sur le robot · Cookomix on the robot
 
 Captures rendues à 1024 × 600, la taille de l'écran du robot. Recettes, avis et photos sont **inventés**
-pour les captures (rien n'est copié de cookomix.com) : sur le robot, ce sont ceux du site.
+pour les captures (rien n'est copié de cookomix.com) : sur le robot, ce sont ceux du site. Le logo
+appartient à Cookomix ; ce projet n'est pas affilié à Cookomix.
 
-| Liste filtrée « Cookomix » | Onglet **Avis** : note, répartition, photos des membres, filtres |
+| Liste : signe **Connect ✓** ou **adaptée** sur chaque recette | Fiche : logo, signe « Compatible Monsieur Cuisine Connect » |
 |---|---|
-| ![Liste Cookomix](docs/images/cookomix/02-liste-cookomix.png) | ![Avis](docs/images/cookomix/05-avis.png) |
-| **Avis complet** (« Lire la suite », photos) | **Visionneuse** des photos des membres |
-| ![Avis](docs/images/cookomix/07-avis-lire-la-suite.png) | ![Visionneuse](docs/images/cookomix/09-visionneuse.png) |
-| **Étapes** : réglages Thermomix convertis pour le Monsieur Cuisine | **Réglages › Autres › Cookomix** |
-| ![Étapes](docs/images/cookomix/04-fiche-etapes.png) | ![Réglages](docs/images/cookomix/11-reglages-cookomix.png) |
-| **Thème clair** | **Accueil** |
-| ![Avis, thème clair](docs/images/cookomix/05-avis-clair.png) | ![Accueil](docs/images/cookomix/01-accueil.png) |
+| ![Liste Cookomix](docs/images/cookomix/02-liste-cookomix.png) | ![Fiche](docs/images/cookomix/03-fiche-ingredients.png) |
+| Onglet **Avis** : note, répartition, photos des membres, filtres | **Avis complet** (« Lire la suite », photos) |
+| ![Avis](docs/images/cookomix/05-avis.png) | ![Avis](docs/images/cookomix/07-avis-lire-la-suite.png) |
+| **Visionneuse** des photos des membres | **Tous les avis** sur le téléphone (QR code) |
+| ![Visionneuse](docs/images/cookomix/09-visionneuse.png) | ![QR code](docs/images/cookomix/09b-avis-qr-code.png) |
+| Recette **adaptée** : ce qui a changé, réglage par réglage | **Étapes** : réglages convertis pour le Monsieur Cuisine |
+| ![Adaptation](docs/images/cookomix/10b-details-adaptation.png) | ![Étapes](docs/images/cookomix/04-fiche-etapes.png) |
+| **Réglages › Recettes › Cookomix** | **Thème clair** |
+| ![Réglages](docs/images/cookomix/11-reglages-cookomix.png) | ![Avis, thème clair](docs/images/cookomix/05-avis-clair.png) |
 
 Régénérer : `CookomixScreensTest` (`gradlew :app:testReleaseUnitTest --tests app.toque.CookomixScreensTest`,
 `TOQUE_THEME=light` pour le thème clair), images dans `app/build/screenshots/cookomix/`.

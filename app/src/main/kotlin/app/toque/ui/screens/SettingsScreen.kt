@@ -58,7 +58,7 @@ class SettingsScreen(a: MainActivity, private val startOn: Family? = null) : Scr
     enum class Family { SCREEN, KNOB_SOUNDS, RECIPES, COOKING, SAFETY, PHONE, LANGUAGE_TIME, UPDATES, OTHERS, ADVANCED }
 
     /** D'où viennent les recettes : une pastille chacune, en haut de la famille « Recettes ». Mealie est dans « Autres ». */
-    private enum class Source { LIDL, SITE, MINE, STOCK }
+    private enum class Source { LIDL, COOKOMIX, SITE, MINE, STOCK }
 
     override val title = tr("Réglages")
     /** La famille ouverte. */
@@ -308,6 +308,7 @@ class SettingsScreen(a: MainActivity, private val startOn: Family? = null) : Scr
             p.addView(page, Ui.lp())
             when (s) {
                 Source.LIDL -> lidlPage(page)
+                Source.COOKOMIX -> cookomixPage(page)
                 Source.SITE -> communityPage(page)
                 Source.MINE -> myRecipesPage(page)
                 Source.STOCK -> stockAppPage(page)
@@ -323,6 +324,7 @@ class SettingsScreen(a: MainActivity, private val startOn: Family? = null) : Scr
         for (s in Source.values()) {
             sourceRow.addView(Ui.toggleChip(c, when (s) {
                 Source.LIDL -> "Lidl"
+                Source.COOKOMIX -> "Cookomix"
                 Source.SITE -> "toqueapp.org"
                 Source.MINE -> tr("Mes recettes")
                 Source.STOCK -> tr("Appli d'origine")
@@ -397,16 +399,18 @@ class SettingsScreen(a: MainActivity, private val startOn: Family? = null) : Scr
         p.addView(setting(accountText, accountButtons), Ui.lp(t = 8, b = 8))
     }
 
-    /** Famille « Autres » : ce qui vient en plus (Cookomix, un serveur Mealie), une rubrique chacun. */
+    /** Famille « Autres » : ce qui vient en plus (un serveur Mealie pour l'instant), une rubrique chacun. */
     private fun othersPage(p: LinearLayout) {
-        group(p, "Cookomix")
-        cookomixPage(p)
         group(p, "Mealie")
         mealiePage(p)
     }
 
-    /** Recettes de cookomix.com (écrites pour le Thermomix), converties aux limites du Connect. */
+    /** Recettes de cookomix.com (écrites pour le Thermomix), converties aux limites du Connect (Réglages › Recettes). */
     private fun cookomixPage(p: LinearLayout) {
+        app.toque.cookomix.CookomixBadges.logo(c)?.let { bmp ->
+            p.addView(android.widget.ImageView(c).apply { setImageBitmap(bmp); scaleType = android.widget.ImageView.ScaleType.FIT_START },
+                Ui.lp(Ui.u(26) * bmp.width / bmp.height, Ui.u(26), t = 6))
+        }
         p.addView(hint(tr("Les recettes de cookomix.com sont écrites pour le Thermomix : Toque convertit chaque réglage aux limites du Monsieur Cuisine Connect (vitesse 3 en chauffe, 130 °C, fouet à 4…) et écarte celles qu'il ne sait pas convertir. Vérifiez chaque réglage les premières fois. La première synchro dure une heure ou plus.")),
             Ui.lp(t = 6, b = 8))
         cookomixText = Ui.text(c, "", 16f, Ui.TEXT).apply { setLineSpacing(0f, 1.15f) }

@@ -16,7 +16,7 @@ corrections de sécurité…) ; installer l'original seul ferait perdre Cookomix
 
 - Base : `Wuki60/MrCuisineVibeConnect` 0.11.0, historique conservé.
 - Cookomix est une **source de recettes à part** (comme Mealie) : identifiants `ckx-…`, pastille
-  « Cookomix », rubrique *Réglages › Autres › Cookomix*, jamais touchées par la synchro Lidl,
+  « Cookomix », rubrique *Réglages › Recettes › Cookomix*, jamais touchées par la synchro Lidl,
   **réservées au Connect** (réglages convertis pour ses limites).
 - Conversion Thermomix → MCC reprise d'aguiran (`core/.../recipes/Cookomix.kt`) : vitesse 3 max en
   chauffe / sens inverse, 4 max au fouet, 130 °C max, pétrissage découpé en 2 min, cuissons > 99 min
@@ -98,7 +98,7 @@ on en est) :
    ouvrir le couvercle pendant un essai (arrêt immédiat) ; 30 s à 37 °C.
 6. `wifi` (ADB par Wi-Fi) : on peut alors débrancher le câble et refermer la trappe.
 7. *Réglages › Recettes › Lidl › Synchroniser* (~15 min).
-8. **Cookomix** : *Réglages › Autres › Cookomix › Activer*. Première synchro **1 h ou plus**, les
+8. **Cookomix** : *Réglages › Recettes › Cookomix › Activer*. Première synchro **1 h ou plus**, les
    recettes apparaissent au fur et à mesure. Options : *Inclure les recettes adaptées* (oui par
    défaut), *Synchro Cookomix chaque nuit* (à activer si tu veux les nouvelles recettes).
 9. Vérifier *Réglages › Mises à jour* : « à jour », et *L'installer seul* activé.

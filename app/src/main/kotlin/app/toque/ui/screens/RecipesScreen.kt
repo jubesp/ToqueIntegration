@@ -600,7 +600,7 @@ class RecipesScreen(
             val lang = e.language.substringBefore('-')
             val tag = if (e.source == RecipeSource.USER) tr("Perso")
                 else if (e.source == RecipeSource.MEALIE) "Mealie"
-                else if (e.source == RecipeSource.COOKOMIX) "Cookomix"
+                else if (e.source == RecipeSource.COOKOMIX) app.toque.cookomix.CookomixBadges.cardBadge(e.tags)
                 else if (e.source == RecipeSource.COMMUNITY && lang == I18n.code.substringBefore('-')) ""
                 else lang.uppercase()
             badge.text = tag

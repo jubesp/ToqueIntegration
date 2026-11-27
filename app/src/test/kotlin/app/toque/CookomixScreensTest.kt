@@ -90,7 +90,7 @@ class CookomixScreensTest {
         id = "ckx-900002", title = "Brioche tressée au sucre perlé", category = "Dessert", servings = 8, totalMinutes = 190,
         source = RecipeSource.COOKOMIX, language = "fr", devices = listOf(Cookomix.CONNECT_DEVICE), image = base + "brioche.jpg",
         author = "Julien P.", rating = 4.6, ratingCount = 88, tags = listOf("Cookomix", Cookomix.TAG_ADAPTED),
-        notes = "Recette Thermomix adaptée au Monsieur Cuisine connect :\n• pétrissage de 6 min découpé en tranches de 2 min (limite du MCC)\n\nSource : " + page("brioche-tressee-thermomix"),
+        notes = "Recette Thermomix adaptée au Monsieur Cuisine connect :\n• pétrissage de 6 min découpé en tranches de 2 min (limite du MCC)\n• vitesse 3,5 arrondie à 4\n• 98 °C arrondi à 95 °C\n\nSource : " + page("brioche-tressee-thermomix"),
         steps = listOf(Step("Pétrir.", StepMachine(StepProgram.KNEAD, 120), needsReview = true)),
     )
     private val others = listOf(
@@ -274,7 +274,7 @@ class CookomixScreensTest {
 
         activity.push(RecipeScreen(activity, app.recipes.get(risotto.id)!!))
         idle(3)
-        assertNotNull(findText(activity.window.decorView, "Depuis cookomix.com · par Camille L."))
+        assertNotNull(findText(activity.window.decorView, "Compatible Monsieur Cuisine Connect"))
         shot("03-fiche-ingredients")
         click("Étapes")
         shot("04-fiche-etapes")
@@ -295,13 +295,20 @@ class CookomixScreensTest {
         idle(3)
         shot("09-visionneuse")
         activity.closeOverlay()
+        idle(2)
+        find(activity.window.decorView, ScrollView::class.java) { findText(it, "Sophie_cuisine") != null }?.let { it.scrollTo(0, it.getChildAt(0).height) }
+        shot("09b-avis-qr-code")
 
         activity.push(RecipeScreen(activity, app.recipes.get(brioche.id)!!))
         idle(3)
         shot("10-fiche-adaptee")
+        click("Adaptée au Monsieur Cuisine · détails")
+        shot("10b-details-adaptation")
+        activity.closeOverlay()
 
-        activity.push(SettingsScreen(activity, SettingsScreen.Family.OTHERS))
+        activity.push(SettingsScreen(activity, SettingsScreen.Family.RECIPES))
         idle(3)
+        click("Cookomix")
         shot("11-reglages-cookomix")
         activity.push(SettingsScreen(activity, SettingsScreen.Family.UPDATES))
         idle(3)

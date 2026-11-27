@@ -128,8 +128,25 @@ object CookomixReviews {
         fill()
         box.addView(HorizontalScrollView(a).apply { isHorizontalScrollBarEnabled = false; addView(chips) }, Ui.lp(t = 20))
         box.addView(list, Ui.lp(t = 4))
-        if (recipe.ratingCount > comments.size)
-            box.addView(Ui.text(a, tr("Les avis les plus utiles ; tous les autres sont sur cookomix.com."), 15f, Ui.TEXT3), Ui.lp(t = 14, b = 8))
+        box.addView(allOnPhone(a, Cookomix.pageUrl(recipe)!!, recipe.ratingCount > comments.size), Ui.lp(t = 16, b = 8))
+    }
+
+    /**
+     * Les autres avis : le site ne les donne qu'à son propre site web ; un QR code ouvre la recette sur le
+     * téléphone, à la section des avis.
+     */
+    private fun allOnPhone(a: MainActivity, url: String, more: Boolean): View {
+        val row = Ui.horizontal(a)
+        row.background = Ui.round(Ui.SURFACE2, 18f)
+        row.setPadding(Ui.u(16), Ui.u(14), Ui.u(16), Ui.u(14))
+        val code = try { app.toque.core.qr.QrCode.encode(url.trimEnd('/') + "/#avis", app.toque.core.qr.QrCode.ErrorCorrection.L) } catch (_: Throwable) { null }
+        if (code != null) row.addView(app.toque.ui.QrView(a).apply { this.code = code }, LinearLayout.LayoutParams(Ui.u(112), Ui.u(112)).apply { rightMargin = Ui.u(16) })
+        val col = Ui.vertical(a)
+        col.addView(Ui.text(a, if (more) tr("Tous les avis et toutes les photos") else tr("La recette sur cookomix.com"), 18f, Ui.TEXT, Ui.MEDIUM))
+        col.addView(Ui.text(a, if (more) tr("Le robot montre les avis les plus utiles. Scannez ce code avec votre téléphone pour lire les autres sur cookomix.com, et y laisser le vôtre.")
+            else tr("Scannez ce code avec votre téléphone pour ouvrir la recette sur cookomix.com et y laisser votre avis."), 15f, Ui.TEXT2).apply { setLineSpacing(0f, 1.1f) }, Ui.lp(t = 4))
+        row.addView(col, LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+        return row
     }
 
     private fun matches(cm: Cookomix.Comment, f: Filter) = when (f) {

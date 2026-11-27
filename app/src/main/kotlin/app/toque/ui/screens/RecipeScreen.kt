@@ -91,11 +91,8 @@ class RecipeScreen(a: MainActivity, val recipe: Recipe) : Screen(a) {
         val community = recipe.source == RecipeSource.COMMUNITY
         if (recipe.source == RecipeSource.USER) byline += tr("Ma recette")
         else if (recipe.source == RecipeSource.MEALIE) byline += tr("Depuis Mealie")
-        else if (recipe.source == RecipeSource.COOKOMIX) {
-            byline += if (recipe.author.isNotBlank()) tr("Depuis cookomix.com · par %s", recipe.author) else tr("Depuis cookomix.com")
-            // Recette Thermomix dont un réglage a été changé pour le Monsieur Cuisine : on dit lequel.
-            app.toque.core.recipes.Cookomix.adaptations(recipe).firstOrNull()?.let { byline += tr("Adaptée au Monsieur Cuisine : %s", it) }
-        }
+        // ToqueIntegration : une recette Cookomix montre le logo du site et son signe (compatible ou adaptée).
+        else if (recipe.source == RecipeSource.COOKOMIX) left.addView(app.toque.cookomix.CookomixBadges.header(a, recipe), Ui.lp(t = 10))
         else if (community) byline += if (recipe.author.isNotBlank()) tr("Communauté toqueapp.org · par %s", recipe.author) else tr("Communauté toqueapp.org")
         else if (recipe.author.isNotBlank()) byline += tr("Par %s", authorName(recipe.author))
         // Recette de la communauté : sa langue seulement si ce n'est pas celle de l'interface.
@@ -104,7 +101,7 @@ class RecipeScreen(a: MainActivity, val recipe: Recipe) : Screen(a) {
         if (recipe.ratingCount > 0) byline += "★ " + tr("%s/5 · %d notes", rating(recipe.rating), recipe.ratingCount)
         // Une ligne chacun : sur une seule, la note était coupée (« 124… ») dès que l'auteur est long.
         byline.forEachIndexed { i, line ->
-            left.addView(Ui.ellipsize(Ui.text(c, line, 16f, Ui.TEXT2)), Ui.lp(t = if (i == 0) 10 else 2))
+            left.addView(Ui.ellipsize(Ui.text(c, line, 16f, Ui.TEXT2)), Ui.lp(t = if (i == 0 && recipe.source != RecipeSource.COOKOMIX) 10 else if (i == 0) 6 else 2))
         }
         // Recette perso, compte toqueapp.org relié : où elle en est sur le site ; toucher pour choisir.
         if (recipe.source == RecipeSource.USER) SitePublish.status(a, recipe)?.let { line ->
