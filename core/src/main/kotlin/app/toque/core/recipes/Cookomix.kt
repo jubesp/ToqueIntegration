@@ -350,8 +350,14 @@ object Cookomix {
 
     enum class CommentKind { RATED, COMMENT, QUESTION }
 
-    /** Avis d'un membre : [rating] 1 à 5 (0 : sans note), [photos] miniatures (480 × 320) de ses essais. */
-    class Comment(val kind: CommentKind, val author: String, val rating: Int, val date: String, val text: String, val photos: List<String>)
+    /**
+     * Avis d'un membre : [rating] 1 à 5 (0 : sans note), [photos] miniatures (480 × 320) de ses essais,
+     * [avatar] la photo de profil (vide : aucune).
+     */
+    class Comment(
+        val kind: CommentKind, val author: String, val rating: Int, val date: String, val text: String,
+        val photos: List<String>, val avatar: String = "",
+    )
 
     private val ACTIVITY_START = Regex("<li class=\"activity [^\"]*activity-item\"")
     private val HEX_ENTITY = Regex("&#x([0-9a-fA-F]{1,6});")
@@ -391,7 +397,9 @@ object Cookomix {
         val photos = Regex("data-lazy-src=\"(https://www\\.cookomix\\.com/[^\"]+\\.(?:jpe?g|png|webp))\"").findAll(media)
             .map { it.groupValues[1] }.distinct().take(6).toList()
         if (text.isEmpty() && rating == 0 && photos.isEmpty()) return null
-        return Comment(kind, author, rating, date, text, photos)
+        val avatarBlock = Regex("<div class=\"activity-avatar\">(.*?)</div>", RegexOption.DOT_MATCHES_ALL).find(block)?.groupValues?.get(1).orEmpty()
+        val avatar = Regex("data-lazy-src=\"(https://www\\.cookomix\\.com/[^\"]+\\.(?:jpe?g|png|webp))\"").find(avatarBlock)?.groupValues?.get(1).orEmpty()
+        return Comment(kind, author, rating, date, text, photos, avatar)
     }
 
     /** Texte d'un avis : entités hexadécimales (émojis) décodées, puis texte brut. */

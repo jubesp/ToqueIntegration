@@ -41,7 +41,7 @@ class CookomixIntegrationTest {
 
 class CookomixCommentsTest {
     private fun item(header: String, inner: String, photos: List<String> = emptyList()) =
-        """<li class="activity new_note activity-item" id="activity-1"><div class="activity-content "><div class="activity-avatar"> <span class="cookl x1"><img src="a.gif"></span></div>""" +
+        """<li class="activity new_note activity-item" id="activity-1"><div class="activity-content "><div class="activity-avatar"> <span class="cookl x1"><img src="a.gif" data-lazy-src="https://www.cookomix.com/wp-content/uploads/avatars/1/alice-bpthumb.jpg"></span></div>""" +
             """<div class="activity-header"><span class="ico icon-lames"></span><p><span class="cookl x1">Alice &#x1f370;</span> $header <span>il y a 2 mois</span></p></div>""" +
             """<div class="activity-inner"><p>$inner</p></div>""" +
             (if (photos.isEmpty()) "" else """<div class="mpp-container mpp-media-list">""" + photos.joinToString("") {
@@ -64,6 +64,7 @@ class CookomixCommentsTest {
         assertEquals("il y a 2 mois", c[0].date)
         assertEquals("Très bon !\nJ’ai mis moins de sel 😋", c[0].text)
         assertEquals(listOf("https://www.cookomix.com/wp-content/uploads/a-480x320.jpg", "https://www.cookomix.com/wp-content/uploads/b-480x320.jpg"), c[0].photos)
+        assertEquals("https://www.cookomix.com/wp-content/uploads/avatars/1/alice-bpthumb.jpg", c[0].avatar)
         assertEquals(Cookomix.CommentKind.QUESTION, c[1].kind)
         assertEquals(0, c[1].rating)
         assertEquals(Cookomix.CommentKind.COMMENT, c[2].kind)

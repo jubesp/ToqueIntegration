@@ -1,0 +1,50 @@
+# Captures des écrans Cookomix (thème sombre et clair), rendues par Robolectric à 1024 × 600 comme sur
+# le robot, puis publiées sur la branche « screenshots » (docs/images/cookomix/), à reprendre dans le README.
+name: Captures Cookomix
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['claude/**']
+    paths:
+      - 'app/src/main/kotlin/app/toque/cookomix/**'
+      - 'app/src/main/kotlin/app/toque/ui/**'
+      - 'app/src/test/kotlin/app/toque/CookomixScreensTest.kt'
+      - '.github/workflows/screenshots.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Captures (sombre puis clair)
+        run: |
+          ./gradlew --no-daemon :app:testReleaseUnitTest --tests 'app.toque.CookomixScreensTest' || echo "TEST_FAILED=1" >> "$GITHUB_ENV"
+          TOQUE_THEME=light ./gradlew --no-daemon :app:testReleaseUnitTest --tests 'app.toque.CookomixScreensTest' --rerun || echo "TEST_FAILED=1" >> "$GITHUB_ENV"
+          ls -la app/build/screenshots/cookomix || true
+      - name: Rapport en cas d'échec
+        if: env.TEST_FAILED == '1'
+        run: find app/build/test-results -name '*.xml' -exec grep -l "<failure" {} \; | xargs -r cat | head -200
+      - name: Publier sur la branche screenshots
+        run: |
+          mkdir -p /tmp/shots && cp -r app/build/screenshots/cookomix /tmp/shots/ 2>/dev/null || true
+          find app/build/test-results -name '*Cookomix*.xml' -exec cp {} /tmp/shots/ \; 2>/dev/null || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan screenshots-tmp
+          git rm -rq --cached . && git clean -fdq
+          mkdir -p docs/images && cp -r /tmp/shots/cookomix docs/images/ 2>/dev/null || true
+          cp /tmp/shots/*.xml . 2>/dev/null || true
+          git add -A
+          git commit -qm "Captures Cookomix ($GITHUB_SHA)"
+          git push -f origin HEAD:screenshots
+      - name: Échec des captures
+        if: env.TEST_FAILED == '1'
+        run: exit 1

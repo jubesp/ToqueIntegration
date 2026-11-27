@@ -1,16 +1,22 @@
 package app.toque.cookomix
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Paint
+import android.text.TextUtils
+import android.view.Gravity
 import android.view.View
+import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import app.toque.core.i18n.I18n
 import app.toque.core.i18n.tr
 import app.toque.core.recipes.Cookomix
 import app.toque.core.recipes.Recipe
+import app.toque.ui.Icon
 import app.toque.ui.ImageLoader
 import app.toque.ui.MainActivity
 import app.toque.ui.Ui
@@ -23,111 +29,302 @@ import java.net.URL
 import java.util.concurrent.Executors
 
 /**
- * Onglet « Avis » d'une recette Cookomix : les avis de la page publique (« J'ai testé ! », questions),
- * avec la note et les photos des membres. Lus à l'ouverture de l'onglet, jamais enregistrés dans le
- * catalogue (ils changent souvent) ; la page et les miniatures restent en cache pendant la session.
+ * Onglet « Avis » d'une recette Cookomix : la note du site, la galerie des photos des membres
+ * (visionneuse plein écran), des filtres (avec photos, notes, questions) et les avis de la page
+ * publique (« J'ai testé ! », commentaires, questions) avec avatar, note, date et photos.
+ *
+ * Lus à l'ouverture de l'onglet, jamais enregistrés dans le catalogue (ils changent souvent) ; la
+ * page et les miniatures restent en cache pendant la session (miniatures : dans le cache d'Android).
  */
 object CookomixReviews {
-    private val exec = Executors.newSingleThreadExecutor { r -> Thread(r, "toque-ckx-avis").apply { priority = Thread.NORM_PRIORITY - 1 } }
+    private val exec = Executors.newFixedThreadPool(2) { r -> Thread(r, "toque-ckx-avis").apply { priority = Thread.NORM_PRIORITY - 1 } }
     private val cache = object : LinkedHashMap<String, List<Cookomix.Comment>>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<Cookomix.Comment>>?) = size > 20
     }
     private const val USER_AGENT = "Toque (Android; Cookomix; +https://github.com/aguiran/MrCuisineConnectCookomix)"
     private const val THUMB_PX = 480
+    /** Au-delà, l'avis est replié sur [FOLDED_LINES] lignes avec « Lire la suite ». */
+    private const val FOLD_CHARS = 280
+    private const val FOLDED_LINES = 5
+    private const val GALLERY_MAX = 30
+
+    private enum class Filter { ALL, PHOTOS, RATED, QUESTIONS }
+
+    /** Une photo de la galerie et qui l'a postée. */
+    private class Shot(val url: String, val author: String, val date: String, val rating: Int)
 
     /** La recette a une page Cookomix connue : l'onglet « Avis » peut s'afficher. */
     fun available(r: Recipe): Boolean = Cookomix.isCookomix(r.id) && Cookomix.pageUrl(r) != null
 
+    /** Essais d'écran : avis d'une page sans réseau. */
+    internal fun preload(pageUrl: String, comments: List<Cookomix.Comment>) = synchronized(cache) { cache[pageUrl] = comments }
+
+    /** Fichier du cache où une image du site est gardée (essais d'écran : images posées à l'avance). */
+    internal fun fileFor(c: Context, url: String): File =
+        File(File(c.cacheDir, "cookomix-avis").apply { mkdirs() }, Integer.toHexString(url.hashCode()) + "-" + url.substringAfterLast('/').takeLast(60))
+
     /** Remplit [box] (sous le titre déjà posé) ; [state] dit où en est le chargement. */
     fun show(a: MainActivity, recipe: Recipe, box: LinearLayout, state: TextView) {
         val url = Cookomix.pageUrl(recipe) ?: return
+        val cached = synchronized(cache) { cache[url] }
+        if (cached != null) { render(a, recipe, box, state, cached); return }
         state.visibility = View.VISIBLE
         state.text = tr("Chargement des avis…")
         exec.execute {
             val comments = try {
-                synchronized(cache) { cache[url] } ?: Cookomix.parseComments(String(get(url, 4 * 1024 * 1024), Charsets.UTF_8))
-                    .also { synchronized(cache) { cache[url] = it } }
+                Cookomix.parseComments(String(get(url, 4 * 1024 * 1024), Charsets.UTF_8)).also { synchronized(cache) { cache[url] = it } }
             } catch (e: Exception) {
                 null
             }
             box.post {
-                when {
-                    comments == null -> state.text = tr("Avis indisponibles (pas de connexion ?)")
-                    comments.isEmpty() -> state.text = tr("Pas encore de commentaire sur cette recette.")
-                    else -> {
-                        state.visibility = View.GONE
-                        for (cm in comments) box.addView(row(a, cm), Ui.lp(t = 14))
-                        if (recipe.ratingCount > comments.size)
-                            box.addView(Ui.text(a, tr("Les avis les plus utiles ; tous les autres sont sur cookomix.com."), 15f, Ui.TEXT3), Ui.lp(t = 12))
-                    }
-                }
+                if (comments == null) state.text = tr("Avis indisponibles (pas de connexion ?)")
+                else render(a, recipe, box, state, comments)
             }
         }
     }
 
-    private fun row(a: MainActivity, cm: Cookomix.Comment): View {
-        val box = Ui.vertical(a)
-        box.background = Ui.round(Ui.SURFACE2, 16f)
-        box.setPadding(Ui.u(16), Ui.u(12), Ui.u(16), Ui.u(12))
-        val head = Ui.horizontal(a)
-        val badge = when (cm.kind) {
-            Cookomix.CommentKind.RATED -> "★".repeat(cm.rating) + "☆".repeat(5 - cm.rating)
-            Cookomix.CommentKind.QUESTION -> tr("Question")
-            Cookomix.CommentKind.COMMENT -> tr("Commentaire")
+    // ------------------------------------------------------------------ onglet
+
+    private fun render(a: MainActivity, recipe: Recipe, box: LinearLayout, state: TextView, comments: List<Cookomix.Comment>) {
+        if (comments.isEmpty()) {
+            state.visibility = View.VISIBLE
+            state.text = tr("Pas encore de commentaire sur cette recette.")
+            return
         }
-        head.addView(Ui.text(a, badge, 17f, Ui.ACCENT_INK), Ui.lp(Ui.WRAP, Ui.WRAP, r = 12))
-        val who = listOf(shown(cm.author).ifBlank { tr("Anonyme") }, cm.date).filter { it.isNotBlank() }.joinToString(" · ")
-        head.addView(Ui.ellipsize(Ui.text(a, who, 15f, Ui.TEXT3)), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
-        box.addView(head)
-        val text = shown(cm.text)
-        if (text.isNotBlank()) box.addView(Ui.text(a, text, 17f, Ui.TEXT).apply { setLineSpacing(0f, 1.12f) }, Ui.lp(t = 6))
-        if (cm.photos.isNotEmpty()) {
+        state.visibility = View.GONE
+        val shots = comments.flatMap { cm -> cm.photos.map { Shot(it, shown(cm.author), cm.date, cm.rating) } }.take(GALLERY_MAX)
+        box.addView(summary(a, recipe, comments, shots.size), Ui.lp(t = 12))
+        if (shots.isNotEmpty()) {
+            box.addView(label(a, tr("Photos des membres") + " · " + shots.size), Ui.lp(t = 18))
             val strip = Ui.horizontal(a)
-            for (p in cm.photos) {
-                val img = ImageView(a).apply {
-                    scaleType = ImageView.ScaleType.CENTER_CROP
-                    background = Ui.round(Ui.SURFACE3, 12f)
-                    clipToOutline = true
-                    setOnClickListener { enlarge(a, p) }
-                }
-                strip.addView(img, LinearLayout.LayoutParams(Ui.u(168), Ui.u(112)).apply { rightMargin = Ui.u(10) })
-                photo(a, p, img)
+            for ((i, s) in shots.withIndex()) {
+                val img = thumb(a, 14f) { viewer(a, shots, i) }
+                strip.addView(img, LinearLayout.LayoutParams(Ui.u(138), Ui.u(104)).apply { rightMargin = Ui.u(10) })
+                photo(a, s.url, img, Ui.u(138))
             }
             box.addView(HorizontalScrollView(a).apply { isHorizontalScrollBarEnabled = false; addView(strip) }, Ui.lp(t = 10))
+        }
+
+        val list = Ui.vertical(a)
+        val chips = Ui.horizontal(a)
+        var filter = Filter.ALL
+        fun count(f: Filter) = comments.count { matches(it, f) }
+        fun fill() {
+            chips.removeAllViews()
+            for (f in Filter.values()) {
+                val n = count(f)
+                if (f != Filter.ALL && n == 0) continue
+                val name = when (f) {
+                    Filter.ALL -> tr("Tous")
+                    Filter.PHOTOS -> tr("Avec photos")
+                    Filter.RATED -> tr("Notes")
+                    Filter.QUESTIONS -> tr("Questions")
+                }
+                chips.addView(Ui.toggleChip(a, "$name  $n", f == filter) { filter = f; fill() }, Ui.lp(Ui.WRAP, Ui.WRAP, r = 10))
+            }
+            list.removeAllViews()
+            for (cm in comments.filter { matches(it, filter) }) list.addView(row(a, cm), Ui.lp(t = 12))
+        }
+        fill()
+        box.addView(HorizontalScrollView(a).apply { isHorizontalScrollBarEnabled = false; addView(chips) }, Ui.lp(t = 20))
+        box.addView(list, Ui.lp(t = 4))
+        if (recipe.ratingCount > comments.size)
+            box.addView(Ui.text(a, tr("Les avis les plus utiles ; tous les autres sont sur cookomix.com."), 15f, Ui.TEXT3), Ui.lp(t = 14, b = 8))
+    }
+
+    private fun matches(cm: Cookomix.Comment, f: Filter) = when (f) {
+        Filter.ALL -> true
+        Filter.PHOTOS -> cm.photos.isNotEmpty()
+        Filter.RATED -> cm.rating > 0
+        Filter.QUESTIONS -> cm.kind == Cookomix.CommentKind.QUESTION
+    }
+
+    /** Note du site en grand, et ce que contient la page (avis, photos, questions). */
+    private fun summary(a: MainActivity, recipe: Recipe, comments: List<Cookomix.Comment>, photos: Int): View {
+        val card = Ui.horizontal(a)
+        card.background = Ui.round(Ui.SURFACE2, 20f)
+        card.setPadding(Ui.u(20), Ui.u(16), Ui.u(20), Ui.u(16))
+        val left = Ui.vertical(a, Gravity.CENTER_HORIZONTAL)
+        val avg = if (recipe.ratingCount > 0) recipe.rating else comments.filter { it.rating > 0 }.map { it.rating }.average().takeIf { !it.isNaN() } ?: 0.0
+        left.addView(Ui.text(a, if (avg > 0) String.format(I18n.locale, "%.1f", avg) else "–", 40f, Ui.TEXT, Ui.MEDIUM))
+        left.addView(Ui.text(a, stars(avg), 18f, Ui.ACCENT_INK))
+        left.addView(Ui.text(a, if (recipe.ratingCount > 0) tr("%d notes", recipe.ratingCount) else tr("Pas encore noté"), 14f, Ui.TEXT3), Ui.lp(Ui.WRAP, Ui.WRAP, t = 2))
+        card.addView(left, Ui.lp(Ui.WRAP, Ui.WRAP, r = 22))
+        val bars = Ui.vertical(a)
+        val rated = comments.filter { it.rating > 0 }
+        for (n in 5 downTo 1) {
+            val k = rated.count { it.rating == n }
+            val line = Ui.horizontal(a)
+            line.addView(Ui.text(a, "$n★", 14f, Ui.TEXT2), Ui.lp(Ui.u(34), Ui.WRAP))
+            val track = FrameLayout(a)
+            track.background = Ui.round(Ui.SURFACE3, 6f)
+            val fill = View(a).apply { background = Ui.round(Ui.ACCENT, 6f) }
+            val frac = if (rated.isEmpty()) 0f else k.toFloat() / rated.size
+            track.addView(fill, FrameLayout.LayoutParams(0, FrameLayout.LayoutParams.MATCH_PARENT))
+            track.post { fill.layoutParams = FrameLayout.LayoutParams((track.width * frac).toInt(), FrameLayout.LayoutParams.MATCH_PARENT); fill.requestLayout() }
+            line.addView(track, LinearLayout.LayoutParams(0, Ui.u(10), 1f))
+            line.addView(Ui.text(a, k.toString(), 14f, Ui.TEXT3).apply { gravity = Gravity.END }, Ui.lp(Ui.u(30), Ui.WRAP))
+            bars.addView(line, Ui.lp(t = if (n == 5) 0 else 5))
+        }
+        card.addView(bars, LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+        val facts = Ui.vertical(a)
+        facts.addView(fact(a, Icon.Kind.STAR, tr("%d avis", comments.size)))
+        facts.addView(fact(a, Icon.Kind.SCREEN, tr("%d photos", photos)), Ui.lp(t = 6))
+        val q = comments.count { it.kind == Cookomix.CommentKind.QUESTION }
+        if (q > 0) facts.addView(fact(a, Icon.Kind.INFO, if (q == 1) tr("1 question") else tr("%d questions", q)), Ui.lp(t = 6))
+        card.addView(facts, Ui.lp(Ui.WRAP, Ui.WRAP, l = 22))
+        return card
+    }
+
+    private fun fact(a: MainActivity, icon: Icon.Kind, text: String): View {
+        val row = Ui.horizontal(a)
+        row.addView(Icon(a, icon, Ui.TEXT2), LinearLayout.LayoutParams(Ui.u(18), Ui.u(18)).apply { rightMargin = Ui.u(8) })
+        row.addView(Ui.text(a, text, 15f, Ui.TEXT2))
+        return row
+    }
+
+    private fun stars(v: Double): String {
+        val full = Math.round(v).toInt().coerceIn(0, 5)
+        return "★".repeat(full) + "☆".repeat(5 - full)
+    }
+
+    private fun label(a: MainActivity, t: String): TextView =
+        Ui.text(a, t.uppercase(), 14f, Ui.TEXT2, Ui.MEDIUM).apply { letterSpacing = 0.08f }
+
+    /** Un avis : avatar, nom, note ou nature, date ; texte replié s'il est long ; ses photos. */
+    private fun row(a: MainActivity, cm: Cookomix.Comment): View {
+        val box = Ui.vertical(a)
+        box.background = Ui.round(Ui.SURFACE2, 18f)
+        box.setPadding(Ui.u(16), Ui.u(14), Ui.u(16), Ui.u(14))
+        val head = Ui.horizontal(a)
+        val author = shown(cm.author).ifBlank { tr("Anonyme") }
+        head.addView(avatar(a, cm, author), LinearLayout.LayoutParams(Ui.u(46), Ui.u(46)).apply { rightMargin = Ui.u(12) })
+        val who = Ui.vertical(a)
+        who.addView(Ui.ellipsize(Ui.text(a, author, 17f, Ui.TEXT, Ui.MEDIUM)))
+        val line = Ui.horizontal(a)
+        when (cm.kind) {
+            Cookomix.CommentKind.RATED -> line.addView(Ui.text(a, stars(cm.rating.toDouble()), 16f, Ui.ACCENT_INK))
+            Cookomix.CommentKind.QUESTION -> line.addView(Ui.chip(a, tr("Question"), Icon.Kind.INFO, Ui.ACCENT_INK, Ui.ACCENT_DIM, 13f))
+            Cookomix.CommentKind.COMMENT -> line.addView(Ui.chip(a, tr("Commentaire"), null, Ui.TEXT2, Ui.SURFACE3, 13f))
+        }
+        if (cm.date.isNotBlank()) line.addView(Ui.text(a, cm.date, 14f, Ui.TEXT3), Ui.lp(Ui.WRAP, Ui.WRAP, l = 10))
+        who.addView(line, Ui.lp(t = 2))
+        head.addView(who, LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+        box.addView(head)
+
+        val text = shown(cm.text)
+        if (text.isNotBlank()) {
+            val body = Ui.text(a, text, 17f, Ui.TEXT).apply { setLineSpacing(0f, 1.14f) }
+            box.addView(body, Ui.lp(t = 10))
+            if (text.length > FOLD_CHARS) {
+                body.maxLines = FOLDED_LINES
+                body.ellipsize = TextUtils.TruncateAt.END
+                val more = Ui.text(a, tr("Lire la suite"), 16f, Ui.ACCENT_INK, Ui.MEDIUM)
+                more.setPadding(0, Ui.u(8), Ui.u(20), Ui.u(4))
+                more.isClickable = true
+                more.setOnClickListener {
+                    val open = body.maxLines == FOLDED_LINES
+                    body.maxLines = if (open) Int.MAX_VALUE else FOLDED_LINES
+                    more.text = if (open) tr("Réduire") else tr("Lire la suite")
+                }
+                box.addView(more, Ui.lp(Ui.WRAP, Ui.WRAP))
+            }
+        }
+        if (cm.photos.isNotEmpty()) {
+            val shots = cm.photos.map { Shot(it, author, cm.date, cm.rating) }
+            val strip = Ui.horizontal(a)
+            for ((i, p) in cm.photos.withIndex()) {
+                val img = thumb(a, 12f) { viewer(a, shots, i) }
+                strip.addView(img, LinearLayout.LayoutParams(Ui.u(150), Ui.u(100)).apply { rightMargin = Ui.u(10) })
+                photo(a, p, img, Ui.u(150))
+            }
+            box.addView(HorizontalScrollView(a).apply { isHorizontalScrollBarEnabled = false; addView(strip) }, Ui.lp(t = 12))
         }
         return box
     }
 
-    /** Photo touchée : en grand, par-dessus la fiche ; un appui à côté la ferme. */
-    private fun enlarge(a: MainActivity, url: String) {
-        val img = ImageView(a).apply { scaleType = ImageView.ScaleType.FIT_CENTER; adjustViewBounds = true }
-        val card = Ui.card(a, 28f, Ui.SURFACE2)
-        card.setPadding(Ui.u(16), Ui.u(16), Ui.u(16), Ui.u(16))
-        card.addView(img, LinearLayout.LayoutParams(Ui.MATCH, Ui.u(420)))
-        card.setOnClickListener { a.closeOverlay() }
-        a.showOverlay(card, 700)
-        photo(a, url, img, Ui.u(660))
+    /** Photo de profil ronde, ou ses initiales sur une couleur tirée de son nom. */
+    private fun avatar(a: MainActivity, cm: Cookomix.Comment, author: String): View {
+        val frame = FrameLayout(a)
+        frame.background = Ui.gradient(Ui.placeholderColors(author), 23f)
+        frame.clipToOutline = true
+        frame.addView(Ui.text(a, Ui.initials(author).take(2), 17f, 0xFFFFFFFF.toInt(), Ui.MEDIUM).apply { gravity = Gravity.CENTER },
+            Ui.flp(gravity = Gravity.CENTER))
+        if (cm.avatar.isNotEmpty()) {
+            val img = ImageView(a).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
+            frame.addView(img, Ui.flp())
+            photo(a, cm.avatar, img, Ui.u(46))
+        }
+        return frame
     }
 
-    /** Miniature dans le cache de l'appli, puis affichée (sous-échantillonnée par [ImageLoader]). */
-    private fun photo(a: MainActivity, url: String, view: ImageView, width: Int = Ui.u(168)) {
-        val dir = File(a.cacheDir, "cookomix-avis").apply { mkdirs() }
-        val file = File(dir, Integer.toHexString(url.hashCode()) + "-" + url.substringAfterLast('/').takeLast(60))
+    private fun thumb(a: MainActivity, radius: Float, onClick: () -> Unit): ImageView = ImageView(a).apply {
+        scaleType = ImageView.ScaleType.CENTER_CROP
+        background = Ui.round(Ui.SURFACE3, radius)
+        clipToOutline = true
+        isClickable = true
+        setOnClickListener { onClick() }
+    }
+
+    // ------------------------------------------------------------------ visionneuse
+
+    /** Photos en grand, une à la fois : précédente, suivante, qui l'a postée ; un appui à côté ferme. */
+    private fun viewer(a: MainActivity, shots: List<Shot>, start: Int) {
+        var i = start
+        val card = Ui.card(a, 26f, Ui.SURFACE)
+        card.setPadding(Ui.u(14), Ui.u(14), Ui.u(14), Ui.u(12))
+        val img = ImageView(a).apply { scaleType = ImageView.ScaleType.FIT_CENTER; background = Ui.round(0xFF000000.toInt(), 18f); clipToOutline = true }
+        card.addView(img, LinearLayout.LayoutParams(Ui.MATCH, Ui.u(430)))
+        val bar = Ui.horizontal(a)
+        val prev = Ui.button(a, "‹", Ui.Style.SECONDARY, height = 52, textSize = 26f) {}
+        val next = Ui.button(a, "›", Ui.Style.SECONDARY, height = 52, textSize = 26f) {}
+        val caption = Ui.vertical(a, Gravity.CENTER_HORIZONTAL)
+        val who = Ui.text(a, "", 17f, Ui.TEXT, Ui.MEDIUM).apply { gravity = Gravity.CENTER }
+        val where = Ui.text(a, "", 14f, Ui.TEXT3).apply { gravity = Gravity.CENTER }
+        caption.addView(who); caption.addView(where)
+        bar.addView(prev, Ui.lp(Ui.u(76), Ui.WRAP))
+        bar.addView(caption, LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+        bar.addView(next, Ui.lp(Ui.u(76), Ui.WRAP))
+        bar.addView(Ui.button(a, "", Ui.Style.GHOST, Icon.Kind.CLOSE, height = 52) { a.closeOverlay() }, Ui.lp(Ui.WRAP, Ui.WRAP, l = 8))
+        card.addView(bar, Ui.lp(t = 12))
+        fun showAt(k: Int) {
+            i = (k + shots.size) % shots.size
+            val s = shots[i]
+            who.text = (if (s.rating > 0) stars(s.rating.toDouble()) + "  " else "") + s.author
+            where.text = listOf(s.date, "${i + 1} / ${shots.size}").filter { it.isNotBlank() }.joinToString(" · ")
+            photo(a, s.url, img, Ui.u(820))
+            Ui.setButtonEnabled(prev, shots.size > 1)
+            Ui.setButtonEnabled(next, shots.size > 1)
+        }
+        prev.setOnClickListener { showAt(i - 1) }
+        next.setOnClickListener { showAt(i + 1) }
+        img.setOnClickListener { showAt(i + 1) }
+        a.showOverlay(card, 860)
+        showAt(start)
+    }
+
+    // ------------------------------------------------------------------ images et réseau
+
+    /** Image du site dans le cache de l'appli, puis affichée (sous-échantillonnée par [ImageLoader]). */
+    private fun photo(a: MainActivity, url: String, view: ImageView, width: Int) {
+        val file = fileFor(a, url)
         if (file.length() > 0) { ImageLoader.load(view, file, width); return }
+        view.tag = url
+        view.setImageDrawable(null)
         exec.execute {
             try {
-                val bytes = get(url, 2 * 1024 * 1024)
+                val bytes = get(url, 3 * 1024 * 1024)
                 val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
                 if (bounds.outWidth > 0) {
-                    val tmp = File(dir, file.name + ".part")
+                    val tmp = File(file.parentFile, file.name + ".part")
                     if (bounds.outWidth <= THUMB_PX * 2) tmp.writeBytes(bytes) else {
                         var sample = 1
                         while (bounds.outWidth / (sample * 2) >= THUMB_PX) sample *= 2
                         val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
                         if (bmp != null) { FileOutputStream(tmp).use { bmp.compress(Bitmap.CompressFormat.JPEG, 85, it) }; bmp.recycle() }
                     }
-                    if (tmp.renameTo(file)) view.post { ImageLoader.load(view, file, width) } else tmp.delete()
+                    if (tmp.renameTo(file)) view.post { if (view.tag == url) ImageLoader.load(view, file, width) } else tmp.delete()
                 }
             } catch (_: Exception) {
             } catch (_: OutOfMemoryError) {
@@ -144,7 +341,6 @@ object CookomixReviews {
         var i = 0
         while (i < s.length) {
             val cp = s.codePointAt(i)
-            val n = Character.charCount(cp)
             val keep = when {
                 // Sélecteurs de variante, liant et teintes de peau : sans effet sur une police qui ne les connaît pas.
                 cp in 0xFE00..0xFE0F || cp == 0x200D || cp in 0x1F3FB..0x1F3FF -> false
@@ -152,7 +348,7 @@ object CookomixReviews {
                 else -> true
             }
             if (keep) out.appendCodePoint(cp)
-            i += n
+            i += Character.charCount(cp)
         }
         return out.toString().replace(Regex("[ \\t]{2,}"), " ").trim()
     }
