@@ -29,6 +29,8 @@ import app.toque.recipes.OnlineSync
 import app.toque.recipes.SyncProgress
 import app.toque.recipes.RecipeFiles
 import app.toque.core.mealie.MealieRecipes
+import app.toque.core.recipes.Cookomix
+import app.toque.core.robot.RobotProfiles
 import app.toque.core.recipes.CommunityRecipes
 import app.toque.core.recipes.UserRecipes
 import app.toque.ui.AccentWheel
@@ -101,6 +103,9 @@ class SettingsScreen(a: MainActivity, private val startOn: Family? = null) : Scr
     private lateinit var siteBtn: View
     private lateinit var mealieText: TextView
     private lateinit var mealieButtons: LinearLayout
+    private lateinit var cookomixText: TextView
+    private lateinit var cookomixButtons: LinearLayout
+    private lateinit var cookomixOptions: LinearLayout
 
     override fun build(): View {
         val root = Ui.horizontal(c, Gravity.TOP)
@@ -385,10 +390,68 @@ class SettingsScreen(a: MainActivity, private val startOn: Family? = null) : Scr
         p.addView(setting(accountText, accountButtons), Ui.lp(t = 8, b = 8))
     }
 
-    /** Famille « Autres » : ce qui vient en plus (un serveur Mealie pour l'instant), une rubrique chacun. */
+    /** Famille « Autres » : ce qui vient en plus (Cookomix, un serveur Mealie), une rubrique chacun. */
     private fun othersPage(p: LinearLayout) {
+        group(p, "Cookomix")
+        cookomixPage(p)
         group(p, "Mealie")
         mealiePage(p)
+    }
+
+    /** Recettes de cookomix.com (écrites pour le Thermomix), converties aux limites du Connect. */
+    private fun cookomixPage(p: LinearLayout) {
+        p.addView(hint(tr("Les recettes de cookomix.com sont écrites pour le Thermomix : Toque convertit chaque réglage aux limites du Monsieur Cuisine Connect (vitesse 3 en chauffe, 130 °C, fouet à 4…) et écarte celles qu'il ne sait pas convertir. Vérifiez chaque réglage les premières fois. La première synchro dure une heure ou plus.")),
+            Ui.lp(t = 6, b = 8))
+        cookomixText = Ui.text(c, "", 16f, Ui.TEXT).apply { setLineSpacing(0f, 1.15f) }
+        cookomixButtons = Ui.horizontal(c)
+        p.addView(setting(cookomixText, cookomixButtons), Ui.lp(t = 8, b = 8))
+        cookomixOptions = Ui.vertical(c)
+        cookomixOptions.addView(toggle(tr("Inclure les recettes adaptées"), a.prefs.cookomixAdapted) { a.prefs.cookomixAdapted = it }, Ui.lp(t = 8))
+        cookomixOptions.addView(toggle(tr("Synchro Cookomix chaque nuit"), a.prefs.cookomixNightly) { a.prefs.cookomixNightly = it }, Ui.lp(t = 8, b = 8))
+        p.addView(cookomixOptions)
+    }
+
+    private fun refreshCookomix() {
+        if (!::cookomixText.isInitialized) return
+        val k = a.app.cookomix
+        val prefs = a.prefs
+        cookomixButtons.removeAllViews()
+        cookomixOptions.visibility = if (prefs.cookomixEnabled) View.VISIBLE else View.GONE
+        if (!prefs.cookomixEnabled) {
+            cookomixText.text = tr("Recettes Cookomix désactivées.")
+            if (RobotProfiles.active.lidlDevice != Cookomix.CONNECT_DEVICE) {
+                // Réglages convertis pour le Connect seulement : rien à montrer sur un autre robot.
+                cookomixText.text = tr("Les recettes Cookomix sont converties pour le Monsieur Cuisine Connect seulement.")
+                return
+            }
+            cookomixButtons.addView(Ui.button(c, tr("Activer"), Ui.Style.PRIMARY, Icon.Kind.SYNC, height = 52, textSize = 18f) {
+                k.enable { r -> r?.let { a.toast(it.message, if (it.ok) Ui.OK else Ui.WARN) } }
+            })
+            return
+        }
+        val last = prefs.cookomixLastResult
+        val first = when {
+            k.busy -> k.progress.ifEmpty { tr("Synchronisation en cours…") }
+            last.isEmpty() -> tr("Jamais synchronisé")
+            else -> tr("Dernière synchro le %s", lastLine(last, prefs.cookomixLastLang, prefs.cookomixLastMs))
+        }
+        val repo = a.app.recipes
+        val n = if (repo.loaded) repo.index.entries.count { Cookomix.isCookomix(it.id) } else 0
+        cookomixText.text = first + if (repo.loaded) "\n" + tr("%d recettes Cookomix dans Toque", n) else ""
+        if (k.busy) {
+            cookomixButtons.addView(Ui.button(c, tr("Arrêter"), Ui.Style.SECONDARY, Icon.Kind.CLOSE, height = 52, textSize = 18f) { k.requestStop() },
+                Ui.lp(Ui.WRAP, Ui.WRAP, r = 10))
+        } else {
+            cookomixButtons.addView(Ui.button(c, tr("Synchroniser"), Ui.Style.SECONDARY, Icon.Kind.SYNC, height = 52, textSize = 18f) {
+                k.sync { r -> r?.let { a.toast(it.message, if (it.ok) Ui.OK else Ui.WARN) } }
+            }, Ui.lp(Ui.WRAP, Ui.WRAP, r = 10))
+        }
+        cookomixButtons.addView(Ui.button(c, tr("Désactiver"), Ui.Style.GHOST, Icon.Kind.CLOSE, height = 52, textSize = 18f) {
+            a.confirm(tr("Désactiver Cookomix ?"), tr("Les recettes Cookomix partent du robot. Vos versions dans Mes recettes restent."), tr("Désactiver")) {
+                k.disable()
+                a.toast(tr("Recettes Cookomix désactivées."))
+            }
+        })
     }
 
     /** Un serveur Mealie auto-hébergé : ses recettes arrivent en lecture seule, réglages proposés à vérifier. */
@@ -1140,6 +1203,7 @@ class SettingsScreen(a: MainActivity, private val startOn: Family? = null) : Scr
     private var unsubSync: (() -> Unit)? = null
     private var unsubSite: (() -> Unit)? = null
     private var unsubMealie: (() -> Unit)? = null
+    private var unsubCookomix: (() -> Unit)? = null
 
     override fun onShow() {
         mode = a.prefs.mode
@@ -1150,11 +1214,13 @@ class SettingsScreen(a: MainActivity, private val startOn: Family? = null) : Scr
         renderAccount()
         refreshSite()
         refreshMealie()
+        refreshCookomix()
         // Changement de robot : les recettes sont refiltrées, puis cet écran se met à jour.
-        unsubRecipes = a.app.recipes.onChange { renderRobot(); refreshSync(); refreshSite(); refreshMealie() }
+        unsubRecipes = a.app.recipes.onChange { renderRobot(); refreshSync(); refreshSite(); refreshMealie(); refreshCookomix() }
         unsubSync = SyncProgress.onChange { refreshSync() }
         unsubSite = a.app.site.onChange { renderAccount(); refreshSite() }
         unsubMealie = a.app.mealie.onChange { refreshMealie() }
+        unsubCookomix = a.app.cookomix.onChange { refreshCookomix() }
         refreshCompanion()
         unsubCompanion = a.app.companion?.onChange { ch ->
             if (ch == RobotCompanion.Change.PHONES || ch == RobotCompanion.Change.SERVER) refreshCompanion()
@@ -1187,6 +1253,8 @@ class SettingsScreen(a: MainActivity, private val startOn: Family? = null) : Scr
         unsubSite = null
         unsubMealie?.invoke()
         unsubMealie = null
+        unsubCookomix?.invoke()
+        unsubCookomix = null
     }
 
     override fun onSnapshot(s: Snapshot) {

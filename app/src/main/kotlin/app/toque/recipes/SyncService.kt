@@ -17,7 +17,8 @@ import java.util.Calendar
 import java.util.TimeZone
 
 /**
- * Synchro automatique des recettes : monsieur-cuisine.com, puis toqueapp.org (communauté, compte), puis Mealie. La nuit
+ * Synchro automatique des recettes : monsieur-cuisine.com, puis toqueapp.org (communauté, compte), puis Mealie, puis
+ * Cookomix (si activé avec sa synchro de nuit). La nuit
  * (03 h 30), ou plus tard si le robot était éteint à cette heure-là, une fois inutilisé un moment (voir [AutoSync]).
  */
 @Suppress("DEPRECATION")
@@ -33,6 +34,9 @@ class SyncService : IntentService("toque-synchro") {
         // Mealie (serveur relié) : de même.
         if ((d.run || d == AutoSync.Decision.NOT_DUE) && app.prefs.autoSync && app.prefs.mealieLinked &&
             System.currentTimeMillis() - app.prefs.mealieLastMs >= AutoSync.MIN_GAP_MS) app.mealie.syncNow()
+        // Cookomix (activé, avec « chaque nuit ») : de même. Longue la première fois, courte ensuite.
+        if ((d.run || d == AutoSync.Decision.NOT_DUE) && app.prefs.autoSync && app.prefs.cookomixEnabled && app.prefs.cookomixNightly &&
+            System.currentTimeMillis() - app.prefs.cookomixLastMs >= AutoSync.MIN_GAP_MS) app.cookomix.syncNow()
     }
 
     companion object {

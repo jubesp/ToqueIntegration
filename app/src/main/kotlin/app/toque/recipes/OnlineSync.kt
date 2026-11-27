@@ -177,7 +177,8 @@ class OnlineSync(private val context: Context, private val prefs: Prefs, private
         val kept = entries.map { it.apiId.toString() }.toHashSet()
         if (foreignFailed) kept += stored.recipes.keys
         val keep = kept.mapNotNull { it.toLongOrNull()?.let(McOnline::toqueId) }.toHashSet()
-        val removes = present.any { it !in keep && !UserRecipes.isUser(it) && !CommunityRecipes.isCommunity(it) && !MealieRecipes.isMealie(it) }
+        val removes = present.any { it !in keep && !UserRecipes.isUser(it) && !CommunityRecipes.isCommunity(it) && !MealieRecipes.isMealie(it) &&
+            !app.toque.core.recipes.Cookomix.isCookomix(it) }
         repo.removeAllExcept(keep, rebuild = false)
         index.keys.retainAll(kept)
         writeIndex(indexKey, index)

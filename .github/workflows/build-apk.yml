@@ -1,0 +1,50 @@
+# Builds the Connect APK (Toque + Cookomix) on every push to a work branch, without publishing a
+# release: the APK is attached to the run as an artifact ("Toque-connect-apk"), ready to install with
+# `tools/setup/toque-setup.sh install --apk <file>` (or -Apk on Windows).
+name: Build APK
+
+on:
+  push:
+    branches: ['claude/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Core tests (protocol, safety, recipes, Cookomix conversion)
+        run: ./gradlew --no-daemon :core:test
+
+      - name: Connect APK
+        run: |
+          v=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          ./gradlew --no-daemon :app:assembleRelease
+          mkdir -p out
+          cp app/build/outputs/apk/release/app-release.apk "out/Toque-$v.apk"
+          sha256sum "out/Toque-$v.apk" | tee "out/Toque-$v.apk.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Toque-connect-apk
+          path: out/
+          if-no-files-found: error
+
+      - name: App tests (Robolectric, screens)
+        run: ./gradlew --no-daemon :app:testReleaseUnitTest
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: app/build/screenshots/
+          if-no-files-found: ignore

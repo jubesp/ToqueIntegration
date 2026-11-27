@@ -9,6 +9,7 @@ import android.os.Looper
 import android.os.SystemClock
 import app.toque.Logbook
 import app.toque.core.mealie.MealieRecipes
+import app.toque.core.recipes.Cookomix
 import app.toque.core.recipes.CommunityRecipes
 import app.toque.core.recipes.IndexedRecipe
 import app.toque.core.recipes.Recipe
@@ -575,7 +576,7 @@ class RecipeRepo(private val context: Context, private val log: Logbook? = null)
     /**
      * Remplace tout le catalogue Lidl par l'import du jour (miroir de l'appli d'origine).
      * Les favoris sont conservés ; ceux marqués dans l'appli d'origine sont ajoutés.
-     * Les recettes perso, celles de la communauté (toqueapp.org) et celles de Mealie restent.
+     * Les recettes perso, celles de la communauté (toqueapp.org), de Mealie et de Cookomix restent.
      */
     fun replaceAll(recipes: List<Recipe>) {
         exec.submit { replaceAllNow(recipes) }.get()
@@ -586,8 +587,8 @@ class RecipeRepo(private val context: Context, private val log: Logbook? = null)
         val before = titles(db)
         db.beginTransaction()
         try {
-            db.delete("recipes", "id NOT LIKE ? AND id NOT LIKE ? AND id NOT LIKE ?",
-                arrayOf(UserRecipes.ID_PREFIX + "%", CommunityRecipes.ID_PREFIX + "%", MealieRecipes.ID_PREFIX + "%"))
+            db.delete("recipes", "id NOT LIKE ? AND id NOT LIKE ? AND id NOT LIKE ? AND id NOT LIKE ?",
+                arrayOf(UserRecipes.ID_PREFIX + "%", CommunityRecipes.ID_PREFIX + "%", MealieRecipes.ID_PREFIX + "%", Cookomix.ID_PREFIX + "%"))
             val now = System.currentTimeMillis()
             for (r in recipes) {
                 writeRecipe(db, r, now)
@@ -692,7 +693,31 @@ class RecipeRepo(private val context: Context, private val log: Logbook? = null)
         }.get()
     }
 
-    private fun isLidl(id: String) = !UserRecipes.isUser(id) && !CommunityRecipes.isCommunity(id) && !MealieRecipes.isMealie(id)
+    /** Identifiants des recettes Cookomix enregistrées. */
+    fun cookomixIds(): Set<String> = ids().filterTo(HashSet()) { Cookomix.isCookomix(it) }
+
+    /**
+     * Retire les recettes Cookomix absentes de [keep] (retirées du site, devenues incompatibles, ou
+     * toutes en désactivant Cookomix). Leurs notes, corrections et cuissons restent.
+     */
+    fun removeCookomixExcept(keep: Set<String>) {
+        exec.submit {
+            val db = helper.writableDatabase
+            val gone = titles(db).keys.filter { Cookomix.isCookomix(it) && it !in keep }
+            if (gone.isEmpty()) return@submit
+            db.beginTransaction()
+            try {
+                for (id in gone) db.delete("recipes", "id = ?", arrayOf(id))
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
+            }
+            reloadNow()
+        }.get()
+    }
+
+    private fun isLidl(id: String) = !UserRecipes.isUser(id) && !CommunityRecipes.isCommunity(id) && !MealieRecipes.isMealie(id) &&
+        !Cookomix.isCookomix(id)
 
     /**
      * Enregistre une recette perso (nouvelle ou modifiée) sans attendre : elle est lisible ([get]) et

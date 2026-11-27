@@ -58,6 +58,7 @@ class RecipeChipsTest {
         RecipeChip.Kind.USER -> robotBefore(q, RecipeFilter(source = RecipeSource.USER), "")
         RecipeChip.Kind.COMMUNITY -> robotBefore(q, RecipeFilter(source = RecipeSource.COMMUNITY), "")
         RecipeChip.Kind.MEALIE -> robotBefore(q, RecipeFilter(source = RecipeSource.MEALIE), "")
+        RecipeChip.Kind.COOKOMIX -> robotBefore(q, RecipeFilter(source = RecipeSource.COOKOMIX), "")
         RecipeChip.Kind.QUICK -> robotBefore(q, RecipeFilter(maxMinutes = 30), "")
         RecipeChip.Kind.CATEGORY -> robotBefore(q, RecipeFilter(category = chip.category), "")
     }

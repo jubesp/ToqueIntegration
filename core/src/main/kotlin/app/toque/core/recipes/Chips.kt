@@ -11,7 +11,9 @@ data class RecipeChip(val kind: Kind, val category: String = "") {
     enum class Kind(val key: String) {
         ALL("all"), RECENT("recent"), FREQUENT("frequent"), FAVORITES("favorites"), USER("user"), COMMUNITY("community"), QUICK("quick"), CATEGORY("category"),
         /** Recettes d'un serveur Mealie (ajoutée après les autres : son rang ne déplace aucune clé). */
-        MEALIE("mealie");
+        MEALIE("mealie"),
+        /** Recettes de cookomix.com converties pour le Connect (ajoutée en dernier, même raison). */
+        COOKOMIX("cookomix");
 
         companion object {
             fun of(key: String): Kind? = values().firstOrNull { it.key == key }
@@ -30,6 +32,7 @@ data class RecipeChip(val kind: Kind, val category: String = "") {
         Kind.USER -> tr("Mes recettes")
         Kind.COMMUNITY -> tr("Communauté")
         Kind.MEALIE -> "Mealie"
+        Kind.COOKOMIX -> "Cookomix"
         Kind.QUICK -> tr("30 min max")
         Kind.CATEGORY -> category
     }
@@ -43,6 +46,7 @@ data class RecipeChip(val kind: Kind, val category: String = "") {
         Kind.USER -> RecipeFilter(source = RecipeSource.USER)
         Kind.COMMUNITY -> RecipeFilter(source = RecipeSource.COMMUNITY)
         Kind.MEALIE -> RecipeFilter(source = RecipeSource.MEALIE)
+        Kind.COOKOMIX -> RecipeFilter(source = RecipeSource.COOKOMIX)
         Kind.QUICK -> RecipeFilter(maxMinutes = QUICK_MINUTES)
         Kind.CATEGORY -> RecipeFilter(category = category)
         else -> RecipeFilter()
@@ -56,6 +60,7 @@ data class RecipeChip(val kind: Kind, val category: String = "") {
         val USER = RecipeChip(Kind.USER)
         val COMMUNITY = RecipeChip(Kind.COMMUNITY)
         val MEALIE = RecipeChip(Kind.MEALIE)
+        val COOKOMIX = RecipeChip(Kind.COOKOMIX)
         val QUICK = RecipeChip(Kind.QUICK)
         fun category(name: String) = RecipeChip(Kind.CATEGORY, name)
 
@@ -75,6 +80,7 @@ data class RecipeChip(val kind: Kind, val category: String = "") {
             if (selected?.kind == Kind.USER || index.entries.any { it.source == RecipeSource.USER }) out += USER
             if (selected?.kind == Kind.COMMUNITY || index.entries.any { it.source == RecipeSource.COMMUNITY }) out += COMMUNITY
             if (selected?.kind == Kind.MEALIE || index.entries.any { it.source == RecipeSource.MEALIE }) out += MEALIE
+            if (selected?.kind == Kind.COOKOMIX || index.entries.any { it.source == RecipeSource.COOKOMIX }) out += COOKOMIX
             out += QUICK
             for (cat in index.categories.take(MAX_CATEGORIES)) out += category(cat)
             return out

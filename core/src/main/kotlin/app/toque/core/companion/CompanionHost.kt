@@ -47,7 +47,9 @@ enum class CatalogFilter(val key: String) {
     /** Les pastilles du robot (RecipeChip) : « Mes recettes », « Communauté » (toqueapp.org), « 30 min max », une catégorie. */
     USER("user"), COMMUNITY("community"), QUICK("quick"), CATEGORY("category"),
     /** Recettes d'un serveur Mealie (un téléphone plus ancien ignore cette pastille). */
-    MEALIE("mealie");
+    MEALIE("mealie"),
+    /** Recettes de cookomix.com (un téléphone plus ancien ignore cette pastille). */
+    COOKOMIX("cookomix");
 
     companion object {
         fun of(key: String?): CatalogFilter? = if (key.isNullOrEmpty()) ALL else values().firstOrNull { it.key == key }

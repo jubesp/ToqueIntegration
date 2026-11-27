@@ -69,11 +69,13 @@ data class ChipSelection(
     val community: Boolean = false,
     /** Recettes d'un serveur Mealie ; jamais avec [user] ni [community]. */
     val mealie: Boolean = false,
+    /** Recettes de cookomix.com ; une seule origine à la fois, comme les autres. */
+    val cookomix: Boolean = false,
 ) {
     /** Aucun filtre ni vue : « Toutes ». */
     val isAll: Boolean get() = usage == null && !hasFilters
 
-    val hasFilters: Boolean get() = category.isNotEmpty() || quick || favorites || user || community || mealie
+    val hasFilters: Boolean get() = category.isNotEmpty() || quick || favorites || user || community || mealie || cookomix
 
     val byUsage: Boolean get() = usage != null
 
@@ -85,6 +87,7 @@ data class ChipSelection(
         RecipeChip.Kind.USER -> user
         RecipeChip.Kind.COMMUNITY -> community
         RecipeChip.Kind.MEALIE -> mealie
+        RecipeChip.Kind.COOKOMIX -> cookomix
         RecipeChip.Kind.QUICK -> quick
         RecipeChip.Kind.CATEGORY -> category.isNotEmpty() && category == chip.category
     }
@@ -101,9 +104,10 @@ data class ChipSelection(
             RecipeChip.Kind.ALL -> ChipSelection()
             RecipeChip.Kind.RECENT, RecipeChip.Kind.FREQUENT -> if (usage == chip.kind) ChipSelection() else ChipSelection(usage = chip.kind)
             RecipeChip.Kind.FAVORITES -> filters.copy(favorites = !filters.favorites)
-            RecipeChip.Kind.USER -> filters.copy(user = !filters.user, community = false, mealie = false)
-            RecipeChip.Kind.COMMUNITY -> filters.copy(community = !filters.community, user = false, mealie = false)
-            RecipeChip.Kind.MEALIE -> filters.copy(mealie = !filters.mealie, user = false, community = false)
+            RecipeChip.Kind.USER -> filters.copy(user = !filters.user, community = false, mealie = false, cookomix = false)
+            RecipeChip.Kind.COMMUNITY -> filters.copy(community = !filters.community, user = false, mealie = false, cookomix = false)
+            RecipeChip.Kind.MEALIE -> filters.copy(mealie = !filters.mealie, user = false, community = false, cookomix = false)
+            RecipeChip.Kind.COOKOMIX -> filters.copy(cookomix = !filters.cookomix, user = false, community = false, mealie = false)
             RecipeChip.Kind.QUICK -> filters.copy(quick = !filters.quick)
             RecipeChip.Kind.CATEGORY -> filters.copy(category = if (filters.category == chip.category) "" else chip.category)
         }
@@ -113,13 +117,13 @@ data class ChipSelection(
     val filter: RecipeFilter get() = RecipeFilter(
         category = category,
         favoritesOnly = favorites,
-        source = if (user) RecipeSource.USER else if (community) RecipeSource.COMMUNITY else if (mealie) RecipeSource.MEALIE else null,
+        source = if (user) RecipeSource.USER else if (community) RecipeSource.COMMUNITY else if (mealie) RecipeSource.MEALIE else if (cookomix) RecipeSource.COOKOMIX else null,
         maxMinutes = if (quick) RecipeChip.QUICK_MINUTES else 0,
     )
 
     /** Les pastilles à montrer (celles de [RecipeChip.list]), la pastille d'origine allumée gardée. */
     fun chips(index: SearchIndex): List<RecipeChip> {
-        val origin = if (user) RecipeChip.USER else if (community) RecipeChip.COMMUNITY else if (mealie) RecipeChip.MEALIE else null
+        val origin = if (user) RecipeChip.USER else if (community) RecipeChip.COMMUNITY else if (mealie) RecipeChip.MEALIE else if (cookomix) RecipeChip.COOKOMIX else null
         val out = ArrayList(RecipeChip.list(index, origin))
         // Catégorie choisie disparue du catalogue (ou au-delà des premières) : reste visible pour l'éteindre.
         if (category.isNotEmpty() && out.none { it.kind == RecipeChip.Kind.CATEGORY && it.category == category }) out += RecipeChip.category(category)

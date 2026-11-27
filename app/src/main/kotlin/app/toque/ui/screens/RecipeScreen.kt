@@ -91,10 +91,12 @@ class RecipeScreen(a: MainActivity, val recipe: Recipe) : Screen(a) {
         val community = recipe.source == RecipeSource.COMMUNITY
         if (recipe.source == RecipeSource.USER) byline += tr("Ma recette")
         else if (recipe.source == RecipeSource.MEALIE) byline += tr("Depuis Mealie")
+        else if (recipe.source == RecipeSource.COOKOMIX)
+            byline += if (recipe.author.isNotBlank()) tr("Depuis cookomix.com · par %s", recipe.author) else tr("Depuis cookomix.com")
         else if (community) byline += if (recipe.author.isNotBlank()) tr("Communauté toqueapp.org · par %s", recipe.author) else tr("Communauté toqueapp.org")
         else if (recipe.author.isNotBlank()) byline += tr("Par %s", authorName(recipe.author))
         // Recette de la communauté : sa langue seulement si ce n'est pas celle de l'interface.
-        if (recipe.language.isNotBlank() && !(community && recipe.language.substringBefore('-') == I18n.code.substringBefore('-')))
+        if (recipe.language.isNotBlank() && recipe.source != RecipeSource.COOKOMIX && !(community && recipe.language.substringBefore('-') == I18n.code.substringBefore('-')))
             byline += tr("Recette en %s", java.util.Locale.forLanguageTag(recipe.language).getDisplayLanguage(I18n.locale))
         if (recipe.ratingCount > 0) byline += "★ " + tr("%s/5 · %d notes", rating(recipe.rating), recipe.ratingCount)
         // Une ligne chacun : sur une seule, la note était coupée (« 124… ») dès que l'auteur est long.
@@ -617,6 +619,8 @@ class RecipeScreen(a: MainActivity, val recipe: Recipe) : Screen(a) {
             tr("Toque crée une copie de cette recette dans Mes recettes, telle qu'elle est affichée, pour que vous la modifiiez. La recette de la communauté reste telle quelle.")
             else if (recipe.source == RecipeSource.MEALIE)
             tr("Toque crée une copie de cette recette dans Mes recettes, telle qu'elle est affichée, pour que vous la modifiiez. La recette reste telle quelle dans Mealie.")
+            else if (recipe.source == RecipeSource.COOKOMIX)
+            tr("Toque crée une copie de cette recette dans Mes recettes, telle qu'elle est affichée, pour que vous la modifiiez. La recette Cookomix reste telle quelle.")
             else tr("Toque crée une copie de cette recette dans Mes recettes, telle qu'elle est affichée, pour que vous la modifiiez. La recette Lidl reste telle quelle."),
             tr("Créer ma version"), icon = Icon.Kind.EDIT) {
             a.push(RecipeEditScreen(a, UserRecipes.copyOf(shown), isNew = true))

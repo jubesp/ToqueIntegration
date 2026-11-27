@@ -15,7 +15,8 @@ data class Release(
 
 /** Lecture de l'API GitHub « dernière version » et comparaison de numéros de version. */
 object Releases {
-    const val REPO = "Wuki60/MrCuisineVibeConnect"
+    /** Ce dépôt (Toque 0.11 + Cookomix) : les versions du dépôt d'origine (Wuki60) n'ont pas Cookomix. */
+    const val REPO = "jubesp/ToqueIntegration"
     const val LATEST_URL = "https://api.github.com/repos/$REPO/releases/latest"
     const val PAGE_URL = "https://github.com/$REPO/releases"
 

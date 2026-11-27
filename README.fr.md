@@ -1,5 +1,8 @@
 # MrCuisineVibeConnect
 
+> **ToqueIntegration** : Toque 0.11.0 (Wuki60) + recettes **Cookomix** (portées depuis
+> aguiran/MrCuisineConnectCookomix), version `0.11.0.1`. Voir **[PREPARATION.fr.md](PREPARATION.fr.md)**.
+
 🇬🇧 **[English version](README.md)**
 
 **Toque**, une interface moderne et rapide pour les robots **Monsieur Cuisine** de Lidl : le

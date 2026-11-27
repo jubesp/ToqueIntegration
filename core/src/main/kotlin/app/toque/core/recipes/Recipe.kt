@@ -27,8 +27,9 @@ import app.toque.core.robot.RobotProfiles
  * IMPORTED : recettes Lidl (site monsieur-cuisine.com ou appli d'origine) ; USER : recettes perso ;
  * COMMUNITY : recettes de la communauté, venues de toqueapp.org (identifiants « toqueapp-N ») ;
  * MEALIE : recettes d'un serveur Mealie auto-hébergé, en lecture seule (identifiants « mealie-<uuid> »).
+ * COOKOMIX : recettes de cookomix.com (Thermomix) converties pour le Connect, en lecture seule (identifiants « ckx-<n> »).
  */
-enum class RecipeSource { IMPORTED, USER, COMMUNITY, MEALIE }
+enum class RecipeSource { IMPORTED, USER, COMMUNITY, MEALIE, COOKOMIX }
 
 data class Ingredient(
     val qty: String = "",
