@@ -320,4 +320,100 @@ class CookomixScreensTest {
         idle(3)
         shot("12-reglages-mises-a-jour")
     }
+
+    // ------------------------------------------------------------------ tour complet de l'appli
+
+    private val tourDir = File(outDir.parentFile, "tour").apply { mkdirs() }
+    private val failures = ArrayList<String>()
+
+    /** Capture d'un écran du tour ; une erreur sur un écran n'arrête pas les autres. */
+    private fun tourShot(name: String, open: () -> Unit) {
+        try {
+            activity.closeOverlay()
+            open()
+            idle(3)
+            settle()
+            val root = activity.window.decorView
+            root.measure(View.MeasureSpec.makeMeasureSpec(1024, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(600, View.MeasureSpec.EXACTLY))
+            root.layout(0, 0, 1024, 600)
+            idle(2)
+            val bmp = Bitmap.createBitmap(1024, 600, Bitmap.Config.ARGB_8888)
+            root.draw(Canvas(bmp))
+            File(tourDir, "$name$suffix.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        } catch (t: Throwable) {
+            failures += "$name : $t"
+        }
+    }
+
+    private fun settings(f: SettingsScreen.Family, name: String, scrolled: Boolean = true) {
+        var screen: SettingsScreen? = null
+        tourShot(name) { screen = SettingsScreen(activity, f).also { activity.push(it) } }
+        if (scrolled) tourShot("$name-suite") { screen?.pane?.let { p -> p.scrollTo(0, p.getChildAt(0).height) } }
+    }
+
+    @Test fun tour() {
+        start()
+        val ta = org.robolectric.RuntimeEnvironment.getApplication() as ScreenshotApp
+        val veloute = app.toque.core.recipes.Recipe(id = "perso-veloute", title = "Velouté de potimarron", category = "Soupes", servings = 4,
+            totalMinutes = 35, source = RecipeSource.USER,
+            ingredients = listOf(IngredientGroup(items = listOf(Ingredient("1", "", "oignon"), Ingredient("20", "g", "beurre"),
+                Ingredient("600", "g", "potimarron"), Ingredient("500", "g", "eau"), Ingredient("100", "g", "crème")))),
+            steps = listOf(Step("Éplucher l'oignon et couper le potimarron en morceaux."),
+                Step("Mettre le beurre dans le bol.", weigh = Weigh("beurre", 20)),
+                Step("Faire revenir l'oignon.", StepMachine(StepProgram.MANUAL, 180, 1, 100)),
+                Step("Ajouter le potimarron et l'eau. Cuire.", StepMachine(StepProgram.MANUAL, 1200, 1, 100), Weigh("eau", 500)),
+                Step("Ajouter la crème et mixer.", StepMachine(StepProgram.MANUAL, 60, 8, 0), Weigh("crème", 100))))
+        ta.recipes.saveUser(veloute)
+        waitFor("recette perso") { ta.recipes.index.entries.any { it.id == veloute.id } }
+        ta.recipes.markCooked(risotto.id)
+        ta.recipes.markCooked(veloute.id)
+
+        tourShot("01-accueil") { activity.home() }
+        tourShot("02-recettes") { activity.push(RecipesScreen(activity)) }
+        tourShot("03-recherche") {
+            activity.push(RecipesScreen(activity, focusSearch = true))
+            idle(3)
+            find(activity.window.decorView, android.widget.EditText::class.java)!!.setText("risoto")
+            idle(5)
+        }
+        tourShot("04-recherche-ingredients") {
+            find(activity.window.decorView, android.widget.EditText::class.java)!!.setText("champignons, riz")
+            idle(5)
+        }
+        tourShot("05-favoris") { activity.push(RecipesScreen(activity, favorites = true)) }
+        tourShot("06-recentes") { activity.push(RecipesScreen(activity, initialUsage = RecipesScreen.Usage.RECENT)) }
+        tourShot("07-fiche-cookomix") { activity.push(RecipeScreen(activity, ta.recipes.get(risotto.id)!!)) }
+        tourShot("08-fiche-etapes") { click("Étapes") }
+        tourShot("09-fiche-perso") { activity.push(RecipeScreen(activity, ta.recipes.get(veloute.id)!!)) }
+        tourShot("10-cuisson-guidee") { activity.push(app.toque.ui.screens.CookScreen(activity, ta.recipes.get(risotto.id)!!, 0)) }
+        tourShot("11-cuisson-guidee-reglage") { activity.push(app.toque.ui.screens.CookScreen(activity, ta.recipes.get(risotto.id)!!, 3)) }
+        tourShot("12-cuisson-guidee-pesee") { activity.push(app.toque.ui.screens.CookScreen(activity, ta.recipes.get(veloute.id)!!, 1)) }
+        tourShot("13-recette-terminee") { activity.push(app.toque.ui.screens.RecipeDoneScreen(activity, risotto.id, risotto.title, 2100)) }
+        tourShot("14-cuisson-manuelle") { activity.push(app.toque.ui.screens.ManualScreen(activity)) }
+        tourShot("15-programmes") { activity.push(app.toque.ui.screens.ProgramsScreen(activity)) }
+        tourShot("16-balance") { activity.push(app.toque.ui.screens.ScaleScreen(activity)) }
+        tourShot("17-minuteurs") { activity.home(); idle(2); app.toque.ui.TimerPanel.open(activity) }
+        tourShot("18-nouvelle-recette") { activity.push(app.toque.ui.screens.RecipeEditScreen(activity, app.toque.core.recipes.UserRecipes.blank(), true)) }
+        tourShot("19-modifier-recette") { activity.push(app.toque.ui.screens.RecipeEditScreen(activity, ta.recipes.get(veloute.id)!!, false)) }
+
+        settings(SettingsScreen.Family.SCREEN, "20-reglages-ecran")
+        tourShot("21-roue-des-couleurs") { activity.push(app.toque.ui.screens.AccentWheelScreen(activity)) }
+        settings(SettingsScreen.Family.KNOB_SOUNDS, "22-reglages-molette-sons")
+        settings(SettingsScreen.Family.RECIPES, "23-reglages-recettes-lidl")
+        for ((chip, n) in listOf("Cookomix" to "24", "toqueapp.org" to "25", "Mes recettes" to "26", "Appli d'origine" to "27"))
+            tourShot("$n-reglages-recettes-${chip.lowercase().replace(' ', '-').replace("'", "").replace('.', '-')}") {
+                activity.push(SettingsScreen(activity, SettingsScreen.Family.RECIPES)); idle(3); click(chip)
+            }
+        settings(SettingsScreen.Family.COOKING, "28-reglages-cuisson-balance")
+        settings(SettingsScreen.Family.SAFETY, "29-reglages-securite")
+        settings(SettingsScreen.Family.PHONE, "30-reglages-telephone", scrolled = false)
+        tourShot("31-appairer-telephone") { activity.push(app.toque.ui.screens.PairingScreen(activity)) }
+        settings(SettingsScreen.Family.LANGUAGE_TIME, "32-reglages-langue-heure")
+        settings(SettingsScreen.Family.UPDATES, "33-reglages-mises-a-jour", scrolled = false)
+        settings(SettingsScreen.Family.OTHERS, "34-reglages-autres", scrolled = false)
+        settings(SettingsScreen.Family.ADVANCED, "35-reglages-avance")
+        tourShot("36-diagnostic") { activity.push(app.toque.ui.screens.DiagnosticsScreen(activity)) }
+        tourShot("37-journal") { activity.push(app.toque.ui.screens.LogScreen(activity)) }
+        File(tourDir, "erreurs$suffix.txt").writeText(failures.joinToString("\n"))
+    }
 }
