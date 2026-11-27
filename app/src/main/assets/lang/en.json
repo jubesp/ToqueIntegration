@@ -1049,5 +1049,8 @@
   "(%d illisibles, code %s, réessayées à la prochaine synchro)": "(%d unreadable, code %s, retried at the next sync)",
   "Cookomix : %d compatibles, %d adaptées, %d incompatibles": "Cookomix: %d compatible, %d adapted, %d incompatible",
   "Synchro Cookomix arrêtée : elle reprendra où elle en était.": "Cookomix sync stopped: it will resume where it left off.",
-  "L'installer seul, quand le robot est au repos": "Install it by itself when the robot is idle"
+  "L'installer seul, quand le robot est au repos": "Install it by itself when the robot is idle",
+  "Les avis les plus utiles ; tous les autres sont sur cookomix.com.": "The most helpful reviews; all the others are on cookomix.com.",
+  "Question": "Question",
+  "Commentaire": "Comment"
 }

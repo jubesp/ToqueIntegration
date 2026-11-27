@@ -295,7 +295,8 @@ class CookomixAccount(private val app: ToqueApp) {
                 .filter { it.id.isNotEmpty() && (wanted(it) || (it.status == ADAPTED && repo.isFavorite(it.id))) }
                 .map { it.id }.toHashSet()
             writeIndex(index)
-            repo.removeCookomixExcept(keep)
+            // Une recette en favori reste sur le robot, même retirée du site ou devenue « adaptée » sans l'option.
+            repo.removeCookomixExcept(keep, keepFavorites = true)
             repo.refresh()
 
             // 4. Photos manquantes (en échec pendant la synchro).

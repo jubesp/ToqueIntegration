@@ -158,6 +158,12 @@ class RecipeScreen(a: MainActivity, val recipe: Recipe) : Screen(a) {
                 tr("Avis · %s/5 (%d notes)", rating(recipe.rating), recipe.ratingCount) else tr("Avis")))
             reviewsBox.addView(reviewsState, Ui.lp(t = 10))
             addTab(Tab.REVIEWS, tr("Avis"), recipe.ratingCount, reviewsBox)
+        } else if (app.toque.cookomix.CookomixReviews.available(recipe)) {
+            // ToqueIntegration : avis et photos des membres de cookomix.com.
+            reviewsBox.addView(section(if (recipe.ratingCount > 0)
+                tr("Avis · %s/5 (%d notes)", rating(recipe.rating), recipe.ratingCount) else tr("Avis")))
+            reviewsBox.addView(reviewsState, Ui.lp(t = 10))
+            addTab(Tab.REVIEWS, tr("Avis"), recipe.ratingCount, reviewsBox)
         }
         card.addView(tabsRow)
         card.addView(paneBox, LinearLayout.LayoutParams(Ui.MATCH, 0, 1f))
@@ -210,7 +216,7 @@ class RecipeScreen(a: MainActivity, val recipe: Recipe) : Screen(a) {
         // Avis : lus à la première ouverture de l'onglet.
         if (t == Tab.REVIEWS && !reviewsStarted) {
             reviewsStarted = true
-            reviewsApiId?.let { loadReviews(it, 1) }
+            reviewsApiId?.let { loadReviews(it, 1) } ?: app.toque.cookomix.CookomixReviews.show(a, recipe, reviewsBox, reviewsState)
         }
     }
 

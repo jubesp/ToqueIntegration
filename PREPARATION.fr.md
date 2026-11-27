@@ -103,6 +103,19 @@ on en est) :
    défaut), *Synchro Cookomix chaque nuit* (à activer si tu veux les nouvelles recettes).
 9. Vérifier *Réglages › Mises à jour* : « à jour », et *L'installer seul* activé.
 
+## Cookomix sur le robot
+
+- **Pastille « Cookomix »** dans la liste des recettes (recherche, catégories, tri par note ou durée).
+- **Note du site** sur chaque recette (★ 4,8 · 42 notes), photo de la recette.
+- **Onglet « Avis »** : les avis les plus utiles de la page (« J'ai testé ! », commentaires,
+  questions), avec la note et les **photos des membres** (un appui agrandit la photo). Lus en direct
+  à l'ouverture de l'onglet : il faut le Wi-Fi.
+- **Favoris** (étoile) : ils restent sur le robot même si la recette disparaît de cookomix.com ou
+  devient « adaptée » avec l'option coupée. Les favoris du *compte* Cookomix ne peuvent pas être
+  importés (le site refuse la connexion aux applications) : on les remet à l'étoile dans Toque.
+- **Ma note** et quantités personnelles, **Ma version** (copie modifiable dans Mes recettes) : comme
+  pour toutes les recettes.
+
 ## Précautions Cookomix
 
 - Recettes **Thermomix** converties automatiquement : chaque réglage est **à confirmer**

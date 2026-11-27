@@ -38,3 +38,40 @@ class CookomixIntegrationTest {
         assertFalse(s.tap(RecipeChip.COOKOMIX).cookomix)
     }
 }
+
+class CookomixCommentsTest {
+    private fun item(header: String, inner: String, photos: List<String> = emptyList()) =
+        """<li class="activity new_note activity-item" id="activity-1"><div class="activity-content "><div class="activity-avatar"> <span class="cookl x1"><img src="a.gif"></span></div>""" +
+            """<div class="activity-header"><span class="ico icon-lames"></span><p><span class="cookl x1">Alice &#x1f370;</span> $header <span>il y a 2 mois</span></p></div>""" +
+            """<div class="activity-inner"><p>$inner</p></div>""" +
+            (if (photos.isEmpty()) "" else """<div class="mpp-container mpp-media-list">""" + photos.joinToString("") {
+                """<figure data-src="$it.jpg"><img src="data:x" data-lazy-src="$it-480x320.jpg"></figure>"""
+            } + "</div>") + """<div class="activity-meta clearfix"></div></div></li>"""
+
+    @Test fun comments() {
+        val page = "<html><ul>" +
+            item("a noté 4/5 cette recette,", "Très bon&nbsp;!<br /> J&rsquo;ai mis moins de sel &#x1f60b;", listOf("https://www.cookomix.com/wp-content/uploads/a", "https://www.cookomix.com/wp-content/uploads/b")) +
+            """<li class="activity-ad AdMB"><div class="ad-container"></div></li>""" +
+            item("a posé une question sur cette recette,", "Peut-on congeler ?") +
+            item("a commenté cette recette,", "Merci") +
+            item("a commenté cette recette,", "") +
+            "</ul></html>"
+        val c = Cookomix.parseComments(page)
+        assertEquals(3, c.size)
+        assertEquals(Cookomix.CommentKind.RATED, c[0].kind)
+        assertEquals(4, c[0].rating)
+        assertEquals("Alice 🍰", c[0].author)
+        assertEquals("il y a 2 mois", c[0].date)
+        assertEquals("Très bon !\nJ’ai mis moins de sel 😋", c[0].text)
+        assertEquals(listOf("https://www.cookomix.com/wp-content/uploads/a-480x320.jpg", "https://www.cookomix.com/wp-content/uploads/b-480x320.jpg"), c[0].photos)
+        assertEquals(Cookomix.CommentKind.QUESTION, c[1].kind)
+        assertEquals(0, c[1].rating)
+        assertEquals(Cookomix.CommentKind.COMMENT, c[2].kind)
+        assertTrue(Cookomix.parseComments("<html>rien</html>").isEmpty())
+    }
+
+    @Test fun pageUrl() {
+        val r = app.toque.core.recipes.Recipe(id = "ckx-1", title = "T", notes = "Intro\n\nSource : https://www.cookomix.com/recettes/tarte-thermomix/")
+        assertEquals("https://www.cookomix.com/recettes/tarte-thermomix/", Cookomix.pageUrl(r))
+    }
+}

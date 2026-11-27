@@ -346,6 +346,64 @@ object Cookomix {
             .trim()
     }
 
+    // ------------------------------------------------------------------ avis (« J'ai testé ! », questions)
+
+    enum class CommentKind { RATED, COMMENT, QUESTION }
+
+    /** Avis d'un membre : [rating] 1 à 5 (0 : sans note), [photos] miniatures (480 × 320) de ses essais. */
+    class Comment(val kind: CommentKind, val author: String, val rating: Int, val date: String, val text: String, val photos: List<String>)
+
+    private val ACTIVITY_START = Regex("<li class=\"activity [^\"]*activity-item\"")
+    private val HEX_ENTITY = Regex("&#x([0-9a-fA-F]{1,6});")
+
+    /** Adresse de la page d'une recette Cookomix, d'après ses notes (« Source : … »), ou null. */
+    fun pageUrl(r: Recipe): String? =
+        Regex("https://www\\.cookomix\\.com/recettes/[^\\s/]+/?").find(r.notes)?.value
+
+    /**
+     * Avis affichés sur la page publique d'une recette (les « recommandés », une vingtaine au plus).
+     * Ne lève jamais d'exception : une page au format inattendu donne une liste vide.
+     */
+    fun parseComments(html: String): List<Comment> = try {
+        val starts = ACTIVITY_START.findAll(html).map { it.range.first }.toList()
+        starts.mapIndexedNotNull { i, start ->
+            val end = starts.getOrNull(i + 1) ?: minOf(html.length, start + 60_000)
+            comment(html.substring(start, end))
+        }
+    } catch (_: Exception) {
+        emptyList()
+    }
+
+    private fun comment(block: String): Comment? {
+        val header = Regex("<div class=\"activity-header\">(.*?)</div>", RegexOption.DOT_MATCHES_ALL).find(block)?.groupValues?.get(1) ?: return null
+        val author = commentText(Regex("<span class=\"cookl[^\"]*\">(.*?)</span>", RegexOption.DOT_MATCHES_ALL).find(header)?.groupValues?.get(1))
+        val headText = commentText(header)
+        val rating = Regex("a noté (\\d)/5").find(headText)?.groupValues?.get(1)?.toIntOrNull()?.coerceIn(0, 5) ?: 0
+        val kind = when {
+            rating > 0 -> CommentKind.RATED
+            headText.contains("question") -> CommentKind.QUESTION
+            else -> CommentKind.COMMENT
+        }
+        val date = commentText(Regex("<span>(il y a [^<]*)</span>").find(header)?.groupValues?.get(1))
+        val inner = Regex("<div class=\"activity-inner\">(.*?)</div>", RegexOption.DOT_MATCHES_ALL).find(block)?.groupValues?.get(1)
+        val text = commentText(inner)
+        val media = Regex("<div class=\"mpp-container[^\"]*\">(.*?)</div>", RegexOption.DOT_MATCHES_ALL).find(block)?.groupValues?.get(1).orEmpty()
+        val photos = Regex("data-lazy-src=\"(https://www\\.cookomix\\.com/[^\"]+\\.(?:jpe?g|png|webp))\"").findAll(media)
+            .map { it.groupValues[1] }.distinct().take(6).toList()
+        if (text.isEmpty() && rating == 0 && photos.isEmpty()) return null
+        return Comment(kind, author, rating, date, text, photos)
+    }
+
+    /** Texte d'un avis : entités hexadécimales (émojis) décodées, puis texte brut. */
+    private fun commentText(html: String?): String {
+        if (html.isNullOrBlank()) return ""
+        val decoded = HEX_ENTITY.replace(html) { m ->
+            val cp = m.groupValues[1].toInt(16)
+            if (Character.isValidCodePoint(cp)) String(Character.toChars(cp)) else m.value
+        }
+        return McOnline.plain(decoded)?.trim().orEmpty()
+    }
+
     // ------------------------------------------------------------------ conversion Thermomix → MCC
 
     private class Converter {

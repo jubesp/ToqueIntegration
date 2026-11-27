@@ -698,12 +698,13 @@ class RecipeRepo(private val context: Context, private val log: Logbook? = null)
 
     /**
      * Retire les recettes Cookomix absentes de [keep] (retirées du site, devenues incompatibles, ou
-     * toutes en désactivant Cookomix). Leurs notes, corrections et cuissons restent.
+     * toutes en désactivant Cookomix). [keepFavorites] : une recette en favori reste, même retirée du
+     * site. Leurs notes, corrections et cuissons restent.
      */
-    fun removeCookomixExcept(keep: Set<String>) {
+    fun removeCookomixExcept(keep: Set<String>, keepFavorites: Boolean = false) {
         exec.submit {
             val db = helper.writableDatabase
-            val gone = titles(db).keys.filter { Cookomix.isCookomix(it) && it !in keep }
+            val gone = titles(db).keys.filter { Cookomix.isCookomix(it) && it !in keep && !(keepFavorites && isFavorite(it)) }
             if (gone.isEmpty()) return@submit
             db.beginTransaction()
             try {
