@@ -117,7 +117,9 @@ class CookomixScreensTest {
                 "le goût est incroyable. Le riz est parfaitement crémeux, sans rien surveiller. Petit conseil : laisser reposer " +
                 "deux minutes couvercle fermé avant de servir, et ajouter un filet d'huile de truffe au moment de servir. " +
                 "Toute la famille a adoré, même ma fille qui ne mange jamais de champignons !",
-            photos("sophie", 3), base + "avatars/sophie.jpg"),
+            photos("sophie", 3), base + "avatars/sophie.jpg", "1",
+            listOf(Cookomix.Reply("Camille L.", "Merci Sophie ! Excellente idée les cèpes, je l'ajoute en astuce dans la recette.", "il y a 1 jour"),
+                Cookomix.Reply("Marc68", "Testé avec ton astuce : validé !", "il y a 5 heures"))),
         Cookomix.Comment(Cookomix.CommentKind.RATED, "Marc68", 5, "il y a 1 semaine",
             "Ma recette de risotto préférée, je la fais toutes les semaines. Parfaite avec un peu de persil frais.",
             photos("marc", 1), ""),
@@ -284,6 +286,8 @@ class CookomixScreensTest {
         find(activity.window.decorView, ScrollView::class.java) { findText(it, "Sophie_cuisine") != null }?.scrollTo(0, 330)
         shot("06-avis-suite")
         click("Lire la suite")
+        find(activity.window.decorView, ScrollView::class.java) { findText(it, "Sophie_cuisine") != null }?.scrollTo(0, 560)
+        shot("07b-avis-reponses")
         find(activity.window.decorView, ScrollView::class.java) { findText(it, "Sophie_cuisine") != null }?.scrollTo(0, 330)
         shot("07-avis-lire-la-suite")
         click("Avec photos", exact = false)

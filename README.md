@@ -14,8 +14,10 @@ appartient à Cookomix ; ce projet n'est pas affilié à Cookomix.
 | ![Liste Cookomix](docs/images/cookomix/02-liste-cookomix.png) | ![Fiche](docs/images/cookomix/03-fiche-ingredients.png) |
 | Onglet **Avis** : note, répartition, photos des membres, filtres | **Avis complet** (« Lire la suite », photos) |
 | ![Avis](docs/images/cookomix/05-avis.png) | ![Avis](docs/images/cookomix/07-avis-lire-la-suite.png) |
-| **Visionneuse** des photos des membres | **Tous les avis** sur le téléphone (QR code) |
-| ![Visionneuse](docs/images/cookomix/09-visionneuse.png) | ![QR code](docs/images/cookomix/09b-avis-qr-code.png) |
+| **Réponses** aux avis | **Voir plus d'avis**, page après page |
+| ![Réponses](docs/images/cookomix/07b-avis-reponses.png) | ![Plus d'avis](docs/images/cookomix/09b-avis-qr-code.png) |
+| **Visionneuse** des photos des membres | **Filtre** « Avec photos » |
+| ![Visionneuse](docs/images/cookomix/09-visionneuse.png) | ![Filtre](docs/images/cookomix/08-avis-filtre-photos.png) |
 | Recette **adaptée** : ce qui a changé, réglage par réglage | **Étapes** : réglages convertis pour le Monsieur Cuisine |
 | ![Adaptation](docs/images/cookomix/10b-details-adaptation.png) | ![Étapes](docs/images/cookomix/04-fiche-etapes.png) |
 | **Réglages › Recettes › Cookomix** | **Thème clair** |

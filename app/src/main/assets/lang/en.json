@@ -1071,8 +1071,9 @@
   "Recette adaptée au Monsieur Cuisine": "Recipe adapted to the Monsieur Cuisine",
   "Écrite pour le Thermomix : ces réglages ont été changés pour rester dans les limites du Monsieur Cuisine Connect. Le réglage d'origine est rappelé dans chaque étape concernée.": "Written for the Thermomix: these settings were changed to stay within the Monsieur Cuisine Connect's limits. The original setting is shown in each step concerned.",
   "réglage adapté (détail indisponible : resynchronisez Cookomix)": "adapted setting (details unavailable: sync Cookomix again)",
-  "Tous les avis et toutes les photos": "All reviews and photos",
-  "La recette sur cookomix.com": "The recipe on cookomix.com",
-  "Le robot montre les avis les plus utiles. Scannez ce code avec votre téléphone pour lire les autres sur cookomix.com, et y laisser le vôtre.": "The robot shows the most helpful reviews. Scan this code with your phone to read the others on cookomix.com, and leave yours.",
-  "Scannez ce code avec votre téléphone pour ouvrir la recette sur cookomix.com et y laisser votre avis.": "Scan this code with your phone to open the recipe on cookomix.com and leave your review."
+  "Voir plus d'avis (%d affichés)": "More reviews (%d shown)",
+  "Avis suivants indisponibles pour l'instant": "More reviews unavailable for now",
+  "Tous les avis sont affichés": "All reviews are shown",
+  "Sur votre téléphone": "On your phone",
+  "Scannez ce code pour ouvrir les avis de cette recette sur cookomix.com, et y laisser le vôtre avec vos photos.": "Scan this code to open this recipe's reviews on cookomix.com, and leave yours with your photos."
 }

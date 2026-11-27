@@ -357,7 +357,16 @@ object Cookomix {
     class Comment(
         val kind: CommentKind, val author: String, val rating: Int, val date: String, val text: String,
         val photos: List<String>, val avatar: String = "",
+        /** Numéro de l'avis sur le site (« activity-123 ») : évite les doublons entre la page et les pages suivantes. */
+        val id: String = "",
+        /** Réponses des membres (et de l'auteur de la recette) à cet avis. */
+        val replies: List<Reply> = emptyList(),
     )
+
+    class Reply(val author: String, val text: String, val date: String, val avatar: String = "")
+
+    /** Une page d'avis de l'interface du site : les avis, et s'il en reste après. */
+    class CommentPage(val comments: List<Comment>, val more: Boolean)
 
     private val ACTIVITY_START = Regex("<li class=\"activity [^\"]*activity-item\"")
     private val HEX_ENTITY = Regex("&#x([0-9a-fA-F]{1,6});")
@@ -404,7 +413,61 @@ object Cookomix {
         if (text.isEmpty() && rating == 0 && photos.isEmpty()) return null
         val avatarBlock = Regex("<div class=\"activity-avatar\">(.*?)</div>", RegexOption.DOT_MATCHES_ALL).find(block)?.groupValues?.get(1).orEmpty()
         val avatar = Regex("data-lazy-src=\"(https://www\\.cookomix\\.com/[^\"]+\\.(?:jpe?g|png|webp))\"").find(avatarBlock)?.groupValues?.get(1).orEmpty()
-        return Comment(kind, author, rating, date, text, photos, avatar)
+        val id = Regex("id=\"activity-(\\d+)\"").find(block)?.groupValues?.get(1).orEmpty()
+        return Comment(kind, author, rating, date, text, photos, avatar, id)
+    }
+
+    // Avis suivants : l'interface que les pages du site appellent quand on fait défiler les avis. Sa clé n'est
+    // pas écrite ici : elle est lue, comme le fait le navigateur, dans le script que le site envoie à tout visiteur.
+
+    /** Version des scripts du site, lue sur une page (« "JSVer": "1520" »), ou null. */
+    fun scriptVersion(html: String): String? = Regex("\"JSVer\"\\s*:\\s*\"(\\w+)\"").find(html)?.groupValues?.get(1)
+
+    /** Script des avis du site pour [version]. */
+    fun activitiesScriptUrl(version: String) = "$SITE/assets/$version/cook_activities.js"
+
+    /** Clé que le script des avis envoie avec ses demandes, ou null. */
+    fun apiKey(script: String): String? = Regex("api_key\\s*[:=]\\s*[\"']([A-Za-z0-9]{16,})[\"']").find(script)?.groupValues?.get(1)
+
+    /** Numéro de la recette sur le site (identifiant Toque « ckx-123 »), ou null. */
+    fun postId(r: Recipe): Long? = r.id.removePrefix(ID_PREFIX).toLongOrNull()
+
+    /** Page [page] des avis d'une recette (1 = ceux de la page publique). */
+    fun activitiesUrl(postId: Long, page: Int, key: String, action: String = "list_recipe_comment"): String =
+        "$SITE/wp-json/cookomix/v1/activities/?secondary_id=$postId&action=$action&page=$page&api_key=$key"
+
+    /** En-tête que les pages du site envoient avec cette demande. */
+    val ACTIVITIES_HEADERS = mapOf("X-REST-GLOBALCACHE" to "true", "Accept" to "application/json")
+
+    /** Réponse de l'interface des avis → avis (avec leurs réponses). Ne lève jamais d'exception. */
+    fun parseActivities(json: String): CommentPage = try {
+        val root = Json.parse(json).obj()
+        val list = root["activities"].list().mapNotNull { any ->
+            val o = any.obj()
+            val type = o.str("type").orEmpty()
+            val rating = (o.str("note")?.trim()?.toIntOrNull() ?: o.int("note") ?: 0).coerceIn(0, 5)
+            val kind = when {
+                type == "new_question" -> CommentKind.QUESTION
+                rating > 0 || type == "new_note" -> CommentKind.RATED
+                else -> CommentKind.COMMENT
+            }
+            val photos = o["photos"].list().mapNotNull { p -> p.obj().let { it.str("thumb") ?: it.str("thumb_large") ?: it.str("large") } }
+                .filter { it.startsWith("https://") }.distinct().take(6)
+            val replies = o["comments"].list().mapNotNull { c ->
+                val r = c.obj()
+                val text = commentText(r.str("content"))
+                if (text.isEmpty()) null else Reply(commentText(r.str("display_name")), text, commentText(r.str("time_since")),
+                    r["avatar"].obj().str("url")?.takeIf { it.startsWith("https://") }.orEmpty())
+            }
+            val text = commentText(o.str("content"))
+            if (text.isEmpty() && rating == 0 && photos.isEmpty()) null
+            else Comment(kind, commentText(o.str("display_name")), rating, commentText(o.str("time_since")), text, photos,
+                o["avatar"].obj().str("url")?.takeIf { it.startsWith("https://") }.orEmpty(),
+                o.str("activity_id") ?: o.int("activity_id")?.toString().orEmpty(), replies)
+        }
+        CommentPage(list, list.isNotEmpty())
+    } catch (_: Exception) {
+        CommentPage(emptyList(), false)
     }
 
     /** Texte d'un avis : entités hexadécimales (émojis) décodées, puis texte brut. */

@@ -75,4 +75,38 @@ class CookomixCommentsTest {
         val r = app.toque.core.recipes.Recipe(id = "ckx-1", title = "T", notes = "Intro\n\nSource : https://www.cookomix.com/recettes/tarte-thermomix/")
         assertEquals("https://www.cookomix.com/recettes/tarte-thermomix/", Cookomix.pageUrl(r))
     }
+
+    @Test fun nextPages() {
+        assertEquals("1520", Cookomix.scriptVersion("""<script>var CXdata = { "nonce": "0", "JSVer": "1520", };</script>"""))
+        assertEquals("AbCdEf0123456789xyz", Cookomix.apiKey("""params.page=page}params.api_key="AbCdEf0123456789xyz";return params"""))
+        assertEquals(null, Cookomix.apiKey("rien ici"))
+        val r = app.toque.core.recipes.Recipe(id = "ckx-597776", title = "T")
+        assertEquals(597776L, Cookomix.postId(r))
+        assertEquals("https://www.cookomix.com/wp-json/cookomix/v1/activities/?secondary_id=597776&action=list_recipe_comment&page=2&api_key=K",
+            Cookomix.activitiesUrl(597776, 2, "K"))
+        val json = """{"page":2,"activities":[
+            {"activity_id":"11","type":"new_note","note":"4","display_name":"Bob &#x1f60b;","content":"<p>Bon&nbsp;!</p>","time_since":"il y a 3 jours",
+             "avatar":{"url":"https://www.cookomix.com/a/bob.jpg","letter":"B"},
+             "photos":[{"thumb":"https://www.cookomix.com/p/1-480x320.jpg","large":"https://www.cookomix.com/p/1.jpg"}],
+             "comments":[{"display_name":"Camille","content":"Merci Bob !","time_since":"il y a 2 jours","avatar":{"url":"https://www.cookomix.com/a/c.jpg"}}]},
+            {"activity_id":12,"type":"new_question","note":"0","display_name":"Zoé","content":"Congélation ?","time_since":"il y a 1 an","avatar":{},"photos":[],"comments":[]},
+            {"activity_id":13,"type":"new_comment","display_name":"X","content":"","photos":[],"comments":[]}]}"""
+        val p = Cookomix.parseActivities(json)
+        assertTrue(p.more)
+        assertEquals(2, p.comments.size)
+        val b = p.comments[0]
+        assertEquals("11", b.id)
+        assertEquals(Cookomix.CommentKind.RATED, b.kind)
+        assertEquals(4, b.rating)
+        assertEquals("Bob 😋", b.author)
+        assertEquals("Bon !", b.text)
+        assertEquals(listOf("https://www.cookomix.com/p/1-480x320.jpg"), b.photos)
+        assertEquals("https://www.cookomix.com/a/bob.jpg", b.avatar)
+        assertEquals("Camille", b.replies.single().author)
+        assertEquals("Merci Bob !", b.replies.single().text)
+        assertEquals("12", p.comments[1].id)
+        assertEquals(Cookomix.CommentKind.QUESTION, p.comments[1].kind)
+        assertFalse(Cookomix.parseActivities("""{"activities":[]}""").more)
+        assertFalse(Cookomix.parseActivities("<html>erreur</html>").more)
+    }
 }

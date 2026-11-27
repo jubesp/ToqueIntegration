@@ -38,9 +38,19 @@ import java.util.concurrent.Executors
  */
 object CookomixReviews {
     private val exec = Executors.newFixedThreadPool(2) { r -> Thread(r, "toque-ckx-avis").apply { priority = Thread.NORM_PRIORITY - 1 } }
-    private val cache = object : LinkedHashMap<String, List<Cookomix.Comment>>(16, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<Cookomix.Comment>>?) = size > 20
+    /** Les avis lus pour une recette : ceux de la page, puis ceux des pages suivantes demandées. */
+    private class Reviews(val comments: MutableList<Cookomix.Comment>, val scriptVersion: String?) {
+        var nextPage = 2
+        var more = true
+        var loading = false
+        var filter = Filter.ALL
     }
+
+    private val cache = object : LinkedHashMap<String, Reviews>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Reviews>?) = size > 20
+    }
+    /** Clé du script des avis du site, lue une fois par session (jamais écrite dans le dépôt). */
+    @Volatile private var apiKey: String? = null
     private const val USER_AGENT = "Toque (Android; Cookomix; +https://github.com/aguiran/MrCuisineConnectCookomix)"
     private const val THUMB_PX = 480
     /** Au-delà, l'avis est replié sur [FOLDED_LINES] lignes avec « Lire la suite ». */
@@ -57,7 +67,7 @@ object CookomixReviews {
     fun available(r: Recipe): Boolean = Cookomix.isCookomix(r.id) && Cookomix.pageUrl(r) != null
 
     /** Essais d'écran : avis d'une page sans réseau. */
-    internal fun preload(pageUrl: String, comments: List<Cookomix.Comment>) = synchronized(cache) { cache[pageUrl] = comments }
+    internal fun preload(pageUrl: String, comments: List<Cookomix.Comment>) = synchronized(cache) { cache[pageUrl] = Reviews(comments.toMutableList(), null) }
 
     /** Fichier du cache où une image du site est gardée (essais d'écran : images posées à l'avance). */
     internal fun fileFor(c: Context, url: String): File =
@@ -72,7 +82,8 @@ object CookomixReviews {
         state.text = tr("Chargement des avis…")
         exec.execute {
             val comments = try {
-                Cookomix.parseComments(String(get(url, 4 * 1024 * 1024), Charsets.UTF_8)).also { synchronized(cache) { cache[url] = it } }
+                val html = String(get(url, 4 * 1024 * 1024), Charsets.UTF_8)
+                Reviews(Cookomix.parseComments(html).toMutableList(), Cookomix.scriptVersion(html)).also { synchronized(cache) { cache[url] = it } }
             } catch (e: Exception) {
                 null
             }
@@ -85,13 +96,21 @@ object CookomixReviews {
 
     // ------------------------------------------------------------------ onglet
 
-    private fun render(a: MainActivity, recipe: Recipe, box: LinearLayout, state: TextView, comments: List<Cookomix.Comment>) {
+    /** Marque du contenu de l'onglet (refait quand des avis suivants arrivent). */
+    private const val CONTENT_TAG = "cookomix-avis"
+
+    private fun render(a: MainActivity, recipe: Recipe, box: LinearLayout, state: TextView, st: Reviews) {
+        val comments: List<Cookomix.Comment> = ArrayList(st.comments)
+        box.findViewWithTag<View>(CONTENT_TAG)?.let { box.removeView(it) }
         if (comments.isEmpty()) {
             state.visibility = View.VISIBLE
             state.text = tr("Pas encore de commentaire sur cette recette.")
             return
         }
         state.visibility = View.GONE
+        val outer = box
+        @Suppress("NAME_SHADOWING") val box = Ui.vertical(a).apply { tag = CONTENT_TAG }
+        outer.addView(box)
         val shots = comments.flatMap { cm -> cm.photos.map { Shot(it, shown(cm.author), cm.date, cm.rating) } }.take(GALLERY_MAX)
         box.addView(summary(a, recipe, comments, shots.size), Ui.lp(t = 12))
         if (shots.isNotEmpty()) {
@@ -107,7 +126,7 @@ object CookomixReviews {
 
         val list = Ui.vertical(a)
         val chips = Ui.horizontal(a)
-        var filter = Filter.ALL
+        var filter = st.filter
         fun count(f: Filter) = comments.count { matches(it, f) }
         fun fill() {
             chips.removeAllViews()
@@ -120,7 +139,7 @@ object CookomixReviews {
                     Filter.RATED -> tr("Notes")
                     Filter.QUESTIONS -> tr("Questions")
                 }
-                chips.addView(Ui.toggleChip(a, "$name  $n", f == filter) { filter = f; fill() }, Ui.lp(Ui.WRAP, Ui.WRAP, r = 10))
+                chips.addView(Ui.toggleChip(a, "$name  $n", f == filter) { filter = f; st.filter = f; fill() }, Ui.lp(Ui.WRAP, Ui.WRAP, r = 10))
             }
             list.removeAllViews()
             for (cm in comments.filter { matches(it, filter) }) list.addView(row(a, cm), Ui.lp(t = 12))
@@ -128,12 +147,57 @@ object CookomixReviews {
         fill()
         box.addView(HorizontalScrollView(a).apply { isHorizontalScrollBarEnabled = false; addView(chips) }, Ui.lp(t = 20))
         box.addView(list, Ui.lp(t = 4))
-        box.addView(allOnPhone(a, Cookomix.pageUrl(recipe)!!, recipe.ratingCount > comments.size), Ui.lp(t = 16, b = 8))
+        val postId = Cookomix.postId(recipe)
+        if (st.more && postId != null) {
+            val more = Ui.button(a, if (st.loading) tr("Chargement des avis…") else tr("Voir plus d'avis (%d affichés)", comments.size),
+                Ui.Style.SECONDARY, Icon.Kind.DOWNLOAD, height = 52, textSize = 17f) { loadMore(a, recipe, outer, state, st, postId) }
+            Ui.setButtonEnabled(more, !st.loading)
+            box.addView(more, Ui.lp(Ui.WRAP, Ui.WRAP, t = 16))
+        }
+        box.addView(allOnPhone(a, Cookomix.pageUrl(recipe)!!, st.more || recipe.ratingCount > comments.size), Ui.lp(t = 16, b = 8))
     }
 
     /**
-     * Les autres avis : le site ne les donne qu'à son propre site web ; un QR code ouvre la recette sur le
-     * téléphone, à la section des avis.
+     * Page suivante des avis, par l'interface que les pages du site appellent en faisant défiler. Sa clé est
+     * lue dans le script des avis du site (une fois par session). Une page sans avis nouveau : c'est la fin.
+     */
+    private fun loadMore(a: MainActivity, recipe: Recipe, box: LinearLayout, state: TextView, st: Reviews, postId: Long) {
+        if (st.loading) return
+        st.loading = true
+        render(a, recipe, box, state, st)
+        exec.execute {
+            val page = try {
+                val key = apiKey ?: run {
+                    val version = st.scriptVersion ?: Cookomix.scriptVersion(String(get(Cookomix.pageUrl(recipe)!!, 4 * 1024 * 1024), Charsets.UTF_8))
+                        ?: throw IOException("version des scripts introuvable")
+                    Cookomix.apiKey(String(get(Cookomix.activitiesScriptUrl(version), 2 * 1024 * 1024), Charsets.UTF_8))
+                        ?: throw IOException("clé introuvable")
+                }.also { apiKey = it }
+                Cookomix.parseActivities(String(get(Cookomix.activitiesUrl(postId, st.nextPage, key), 2 * 1024 * 1024, Cookomix.ACTIVITIES_HEADERS), Charsets.UTF_8))
+            } catch (e: Exception) {
+                // Clé changée par le site : relue à la prochaine demande.
+                if (e is IOException && e.message?.contains("40") == true) apiKey = null
+                null
+            }
+            box.post {
+                st.loading = false
+                if (page == null) {
+                    a.toast(tr("Avis suivants indisponibles pour l'instant"), Ui.WARN)
+                } else {
+                    val seen = st.comments.map { it.id.ifEmpty { it.author + "|" + it.text.take(40) } }.toHashSet()
+                    val fresh = page.comments.filter { seen.add(it.id.ifEmpty { it.author + "|" + it.text.take(40) }) }
+                    st.comments += fresh
+                    st.nextPage++
+                    if (!page.more || fresh.isEmpty()) st.more = false
+                    if (fresh.isEmpty()) a.toast(tr("Tous les avis sont affichés"))
+                }
+                render(a, recipe, box, state, st)
+            }
+        }
+    }
+
+    /**
+     * Un QR code ouvre la recette sur le téléphone, à la section des avis (pour laisser le sien).
      */
     private fun allOnPhone(a: MainActivity, url: String, more: Boolean): View {
         val row = Ui.horizontal(a)
@@ -142,9 +206,9 @@ object CookomixReviews {
         val code = try { app.toque.core.qr.QrCode.encode(url.trimEnd('/') + "/#avis", app.toque.core.qr.QrCode.ErrorCorrection.L) } catch (_: Throwable) { null }
         if (code != null) row.addView(app.toque.ui.QrView(a).apply { this.code = code }, LinearLayout.LayoutParams(Ui.u(112), Ui.u(112)).apply { rightMargin = Ui.u(16) })
         val col = Ui.vertical(a)
-        col.addView(Ui.text(a, if (more) tr("Tous les avis et toutes les photos") else tr("La recette sur cookomix.com"), 18f, Ui.TEXT, Ui.MEDIUM))
-        col.addView(Ui.text(a, if (more) tr("Le robot montre les avis les plus utiles. Scannez ce code avec votre téléphone pour lire les autres sur cookomix.com, et y laisser le vôtre.")
-            else tr("Scannez ce code avec votre téléphone pour ouvrir la recette sur cookomix.com et y laisser votre avis."), 15f, Ui.TEXT2).apply { setLineSpacing(0f, 1.1f) }, Ui.lp(t = 4))
+        col.addView(Ui.text(a, tr("Sur votre téléphone"), 18f, Ui.TEXT, Ui.MEDIUM))
+        col.addView(Ui.text(a, tr("Scannez ce code pour ouvrir les avis de cette recette sur cookomix.com, et y laisser le vôtre avec vos photos."),
+            15f, Ui.TEXT2).apply { setLineSpacing(0f, 1.1f) }, Ui.lp(t = 4))
         row.addView(col, LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
         return row
     }
@@ -247,6 +311,7 @@ object CookomixReviews {
                 box.addView(more, Ui.lp(Ui.WRAP, Ui.WRAP))
             }
         }
+        for (r in cm.replies) box.addView(reply(a, r), Ui.lp(t = 10))
         if (cm.photos.isNotEmpty()) {
             val shots = cm.photos.map { Shot(it, author, cm.date, cm.rating) }
             val strip = Ui.horizontal(a)
@@ -260,17 +325,35 @@ object CookomixReviews {
         return box
     }
 
+    /** Une réponse à un avis, en retrait, avec un filet à gauche. */
+    private fun reply(a: MainActivity, r: Cookomix.Reply): View {
+        val row = Ui.horizontal(a, Gravity.TOP)
+        row.addView(View(a).apply { background = Ui.round(Ui.STROKE, 2f) }, LinearLayout.LayoutParams(Ui.u(3), LinearLayout.LayoutParams.MATCH_PARENT).apply { leftMargin = Ui.u(20); rightMargin = Ui.u(12) })
+        val author = shown(r.author).ifBlank { tr("Anonyme") }
+        row.addView(avatarOf(a, author, r.avatar, 34), LinearLayout.LayoutParams(Ui.u(34), Ui.u(34)).apply { rightMargin = Ui.u(10) })
+        val col = Ui.vertical(a)
+        val head = Ui.horizontal(a)
+        head.addView(Ui.ellipsize(Ui.text(a, author, 15f, Ui.TEXT, Ui.MEDIUM)))
+        if (r.date.isNotBlank()) head.addView(Ui.text(a, r.date, 13f, Ui.TEXT3), Ui.lp(Ui.WRAP, Ui.WRAP, l = 8))
+        col.addView(head)
+        col.addView(Ui.text(a, shown(r.text), 16f, Ui.TEXT2).apply { setLineSpacing(0f, 1.1f) }, Ui.lp(t = 2))
+        row.addView(col, LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+        return row
+    }
+
     /** Photo de profil ronde, ou ses initiales sur une couleur tirée de son nom. */
-    private fun avatar(a: MainActivity, cm: Cookomix.Comment, author: String): View {
+    private fun avatar(a: MainActivity, cm: Cookomix.Comment, author: String): View = avatarOf(a, author, cm.avatar, 46)
+
+    private fun avatarOf(a: MainActivity, author: String, url: String, sizeDp: Int): View {
         val frame = FrameLayout(a)
-        frame.background = Ui.gradient(Ui.placeholderColors(author), 23f)
+        frame.background = Ui.gradient(Ui.placeholderColors(author), sizeDp / 2f)
         frame.clipToOutline = true
-        frame.addView(Ui.text(a, Ui.initials(author).take(2), 17f, 0xFFFFFFFF.toInt(), Ui.MEDIUM).apply { gravity = Gravity.CENTER },
+        frame.addView(Ui.text(a, Ui.initials(author).take(2), sizeDp * 0.37f, 0xFFFFFFFF.toInt(), Ui.MEDIUM).apply { gravity = Gravity.CENTER },
             Ui.flp(gravity = Gravity.CENTER))
-        if (cm.avatar.isNotEmpty()) {
+        if (url.isNotEmpty()) {
             val img = ImageView(a).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
             frame.addView(img, Ui.flp())
-            photo(a, cm.avatar, img, Ui.u(46))
+            photo(a, url, img, Ui.u(sizeDp))
         }
         return frame
     }
@@ -370,13 +453,14 @@ object CookomixReviews {
         return out.toString().replace(Regex("[ \\t]{2,}"), " ").trim()
     }
 
-    private fun get(url: String, maxBytes: Int): ByteArray {
+    private fun get(url: String, maxBytes: Int, headers: Map<String, String> = emptyMap()): ByteArray {
         val c = URL(url).openConnection() as HttpURLConnection
         try {
             c.connectTimeout = 15_000
             c.readTimeout = 20_000
             c.setRequestProperty("User-Agent", USER_AGENT)
             c.setRequestProperty("Accept-Language", "fr-FR")
+            for ((k, v) in headers) c.setRequestProperty(k, v)
             if (c.responseCode != 200) throw IOException(tr("réponse %d du serveur", c.responseCode))
             c.inputStream.use { input ->
                 val out = ByteArrayOutputStream()
