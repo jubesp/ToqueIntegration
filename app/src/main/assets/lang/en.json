@@ -1052,5 +1052,18 @@
   "L'installer seul, quand le robot est au repos": "Install it by itself when the robot is idle",
   "Les avis les plus utiles ; tous les autres sont sur cookomix.com.": "The most helpful reviews; all the others are on cookomix.com.",
   "Question": "Question",
-  "Commentaire": "Comment"
+  "Commentaire": "Comment",
+  "Photos des membres": "Members' photos",
+  "Tous": "All",
+  "Avec photos": "With photos",
+  "Notes": "Ratings",
+  "Questions": "Questions",
+  "%d notes": "%d ratings",
+  "Pas encore noté": "Not rated yet",
+  "%d avis": "%d reviews",
+  "%d photos": "%d photos",
+  "1 question": "1 question",
+  "%d questions": "%d questions",
+  "Lire la suite": "Read more",
+  "Réduire": "Show less"
 }
