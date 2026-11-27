@@ -1048,5 +1048,6 @@
   "%d pages lues": "%d pages read",
   "(%d illisibles, code %s, réessayées à la prochaine synchro)": "(%d unreadable, code %s, retried at the next sync)",
   "Cookomix : %d compatibles, %d adaptées, %d incompatibles": "Cookomix: %d compatible, %d adapted, %d incompatible",
-  "Synchro Cookomix arrêtée : elle reprendra où elle en était.": "Cookomix sync stopped: it will resume where it left off."
+  "Synchro Cookomix arrêtée : elle reprendra où elle en était.": "Cookomix sync stopped: it will resume where it left off.",
+  "L'installer seul, quand le robot est au repos": "Install it by itself when the robot is idle"
 }

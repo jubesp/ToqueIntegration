@@ -1,7 +1,7 @@
 # MrCuisineVibeConnect
 
-> **ToqueIntegration** : Toque 0.11.0 (Wuki60) + recettes **Cookomix** (portées depuis
-> aguiran/MrCuisineConnectCookomix), version `0.11.0.1`. Voir **[PREPARATION.fr.md](PREPARATION.fr.md)**.
+> **ToqueIntegration** : Toque de Wuki60 + recettes **Cookomix** (portées depuis
+> aguiran/MrCuisineConnectCookomix), mis à jour automatiquement à chaque version de Wuki60. Voir **[PREPARATION.fr.md](PREPARATION.fr.md)**.
 
 🇬🇧 **[English version](README.md)**
 

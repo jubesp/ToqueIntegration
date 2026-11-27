@@ -1,0 +1,91 @@
+# Suit les versions de Wuki60/MrCuisineVibeConnect : dès qu'une version sort, elle est fusionnée avec
+# Cookomix (tools/fork/merge-upstream.sh), testée, compilée et publiée ici en vX.Y.Z.1. Les robots la
+# trouvent dans Réglages › Mises à jour (et l'installent seuls si « L'installer seul » est activé).
+# Conflit ou test en échec : rien n'est publié, une issue l'explique.
+name: Suivre Wuki60
+
+on:
+  schedule:
+    - cron: '23 */6 * * *'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Fusion de la dernière version de Wuki60
+        id: merge
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          bash tools/fork/merge-upstream.sh
+
+      - name: Version à publier
+        id: version
+        run: |
+          v=$(bash tools/fork/version.sh)
+          echo "name=$v" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$v" > /dev/null; then
+            echo "v$v est déjà publiée."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-java@v4
+        if: steps.version.outputs.publish == 'true'
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Tests et APK du Connect
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          v="${{ steps.version.outputs.name }}"
+          ./gradlew --no-daemon :core:test :app:assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk "Toque-$v.apk"
+
+      - name: Pousser la fusion
+        if: steps.version.outputs.publish == 'true' && steps.merge.outputs.merged == '1'
+        run: git push origin HEAD:main
+
+      - name: Publier la version
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          v="${{ steps.version.outputs.name }}"
+          up="${{ steps.merge.outputs.tag }}"
+          {
+            echo "Toque $up de Wuki60 avec les recettes Cookomix."
+            gh api "repos/Wuki60/MrCuisineVibeConnect/releases/tags/$up" --jq .body 2>/dev/null | head -40 || true
+          } > notes.md
+          gh release create "v$v" "Toque-$v.apk" --title "Toque $v (Wuki60 $up + Cookomix)" --notes-file notes.md --target "$(git rev-parse HEAD)"
+
+      - name: Signaler l'échec
+        if: failure()
+        run: |
+          title="Suivi de Wuki60 : la version ${{ steps.merge.outputs.tag }} n'a pas pu être publiée"
+          body="Exécution : $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          if [ -s conflicts.txt ]; then
+            body="$body"$'\n\nFichiers en conflit entre Wuki60 et Cookomix :\n'"$(sed 's/^/- /' conflicts.txt)"$'\n\nÀ résoudre à la main (ou par un agent), puis pousser sur main : la publication repartira.'
+          else
+            body="$body"$'\n\nLes tests ou la compilation ont échoué après la fusion : rien n\x27a été publié ni poussé.'
+          fi
+          open=$(gh api "repos/$GITHUB_REPOSITORY/issues?state=open&per_page=100" --jq "[.[] | select(.title == \"$title\")] | length")
+          [ "$open" != "0" ] || gh api "repos/$GITHUB_REPOSITORY/issues" -f title="$title" -f body="$body" > /dev/null

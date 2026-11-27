@@ -1,5 +1,12 @@
 package app.toque.ui.screens
 
+import app.toque.cookomixEnabled
+import app.toque.cookomixAdapted
+import app.toque.cookomixNightly
+import app.toque.cookomixLastMs
+import app.toque.cookomixLastResult
+import app.toque.cookomixLastLang
+import app.toque.updateAuto
 import android.content.Intent
 import android.graphics.drawable.ColorDrawable
 import android.text.InputType
@@ -630,6 +637,7 @@ class SettingsScreen(a: MainActivity, private val startOn: Family? = null) : Scr
         p.addView(updBox, Ui.lp(t = 10, b = 8))
         line(p)
         p.addView(toggle(tr("Prévenir quand une version sort"), a.prefs.updateAlerts) { a.prefs.updateAlerts = it }, Ui.lp(t = 8, b = 8))
+        p.addView(toggle(tr("L'installer seul, quand le robot est au repos"), a.prefs.updateAuto) { a.prefs.updateAuto = it }, Ui.lp(b = 8))
         a.updates.available?.let { release = it; upd = Upd.AVAILABLE }
         renderUpdate()
     }

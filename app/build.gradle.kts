@@ -30,8 +30,8 @@ android {
         // Pour publier une mise à jour : augmenter les deux valeurs. Chaque version a deux APK, de la même
         // source : Toque-x.y.z.apk (Connect) et Toque-smart-x.y.z.apk (gradlew -PtoqueSmart=true, Smart).
         // L'outil de mise à jour prend celui de son robot (Releases.parse).
-        versionCode = 20
-        versionName = "0.11.0.1"
+        versionCode = 19
+        versionName = "0.11.0"
         // APK du Monsieur Cuisine Smart (gradlew -PtoqueSmart=true) : le JIT d'Android 8.1 de sa tablette
         // compile mal certaines expressions Kotlin (portages Flav974 et Camybrith) ; le mode sûr le
         // contourne mais ralentit toute l'appli. Jamais dans l'APK du Connect.
@@ -100,3 +100,10 @@ dependencies {
     testImplementation("com.google.zxing:core:3.5.3")
     robolectricAndroid("org.robolectric:android-all-instrumented:14-robolectric-10818077-i6")
 }
+
+// ToqueIntegration (Wuki60 + Cookomix) : les numéros ci-dessus restent ceux de Wuki60 (fusion sans
+// conflit) ; ce dépôt publie X.Y.Z.R et le code ×10 + R, R = tools/fork/REVISION (1 à 9, à augmenter pour
+// publier un correctif propre à ce dépôt sans nouvelle version de Wuki60).
+val forkRevision = rootProject.file("tools/fork/REVISION").readText().trim().toInt().also { require(it in 1..9) }
+android.defaultConfig.versionCode = android.defaultConfig.versionCode!! * 10 + forkRevision
+android.defaultConfig.versionName = android.defaultConfig.versionName + "." + forkRevision

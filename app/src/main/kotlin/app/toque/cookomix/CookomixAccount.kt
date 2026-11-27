@@ -1,5 +1,10 @@
 package app.toque.cookomix
 
+import app.toque.cookomixEnabled
+import app.toque.cookomixAdapted
+import app.toque.cookomixLastMs
+import app.toque.cookomixLastResult
+import app.toque.forgetCookomix
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Handler

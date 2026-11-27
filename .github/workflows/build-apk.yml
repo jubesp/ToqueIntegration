@@ -27,7 +27,7 @@ jobs:
 
       - name: Connect APK
         run: |
-          v=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          v=$(bash tools/fork/version.sh)
           ./gradlew --no-daemon :app:assembleRelease
           mkdir -p out
           cp app/build/outputs/apk/release/app-release.apk "out/Toque-$v.apk"

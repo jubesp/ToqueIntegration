@@ -1,5 +1,6 @@
 package app.toque.ui
 
+import app.toque.updateAuto
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
@@ -101,7 +102,8 @@ class UpdateAlert(private val a: MainActivity) {
         }
         a.prefs.updateAskedVersion = r.version
         a.prefs.updateAskedMs = now
-        UpdateFlow.offer(a, r)
+        // ToqueIntegration : mise à jour automatique (Réglages › Mises à jour), au calme seulement.
+        if (a.prefs.updateAuto) UpdateFlow.install(a, r) {} else UpdateFlow.offer(a, r)
     }
 
     /** Rien en cours : pas de programme, pas de recette guidée, pas de fenêtre, pas en veille. */
@@ -137,7 +139,7 @@ object UpdateFlow {
         ) { install(a, r, onFailed) }
     }
 
-    private fun install(a: MainActivity, r: Release, onFailed: (String) -> Unit) {
+    fun install(a: MainActivity, r: Release, onFailed: (String) -> Unit) {
         if (a.snapshot.busy) {
             a.toast(tr("Arrêtez d'abord le programme en cours"), Ui.WARN)
             return

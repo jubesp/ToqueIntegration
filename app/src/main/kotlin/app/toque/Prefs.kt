@@ -14,7 +14,7 @@ import app.toque.core.robot.RobotProfiles
  */
 class Prefs(context: Context) {
     @Suppress("DEPRECATION")
-    private val p: SharedPreferences = context.getSharedPreferences("toque", Context.MODE_MULTI_PROCESS)
+    internal val p: SharedPreferences = context.getSharedPreferences("toque", Context.MODE_MULTI_PROCESS)
 
     enum class Mode(val key: String, private val fr: String) {
         DEMO("demo", trKey("Démo (base simulée)")),
@@ -536,47 +536,5 @@ class Prefs(context: Context) {
     /** Oublie le serveur Mealie relié. */
     fun forgetMealie() {
         p.edit().remove("mealieUrl").remove("mealieToken").remove("mealieTokenId").remove("mealieLastResult").remove("mealieLastMs").commit()
-    }
-    // ------------------------------------------------------------------ Cookomix (recettes Thermomix converties)
-
-    /** Recettes de cookomix.com sur le robot (désactivé par défaut : première synchro d'une heure ou plus). */
-    var cookomixEnabled: Boolean
-        get() = p.getBoolean("cookomixEnabled", false)
-        set(v) {
-            p.edit().putBoolean("cookomixEnabled", v).commit()
-        }
-
-    /** Garder aussi les recettes « adaptées » (un réglage modifié pour les limites du Connect). */
-    var cookomixAdapted: Boolean
-        get() = p.getBoolean("cookomixAdapted", true)
-        set(v) {
-            p.edit().putBoolean("cookomixAdapted", v).commit()
-        }
-
-    /** Synchro Cookomix chaque nuit, avec les autres (désactivée par défaut : le site n'a pas d'API). */
-    var cookomixNightly: Boolean
-        get() = p.getBoolean("cookomixNightly", false)
-        set(v) {
-            p.edit().putBoolean("cookomixNightly", v).commit()
-        }
-
-    var cookomixLastMs: Long
-        get() = p.getLong("cookomixLastMs", 0)
-        set(v) {
-            p.edit().putLong("cookomixLastMs", v).commit()
-        }
-
-    /** Résultat de la dernière synchro Cookomix, écrit dans la langue d'alors (cookomixLastLang). */
-    var cookomixLastResult: String
-        get() = p.getString("cookomixLastResult", "") ?: ""
-        set(v) {
-            p.edit().putString("cookomixLastResult", v).putString("cookomixLastLang", I18n.code).commit()
-        }
-
-    val cookomixLastLang: String get() = p.getString("cookomixLastLang", "") ?: ""
-
-    /** Oublie l'état des synchros Cookomix (désactivation). */
-    fun forgetCookomix() {
-        p.edit().putBoolean("cookomixEnabled", false).remove("cookomixLastResult").remove("cookomixLastMs").commit()
     }
 }
